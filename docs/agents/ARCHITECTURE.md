@@ -348,7 +348,7 @@ Renovate runs weekly (Monday before 6am ET). k8s core libraries update monthly. 
 
 **Kubernetes 1.28+ hard requirement.** CEL functions `isIP()` and `isCIDR()` require Kubernetes 1.28+. The CRDs will fail to install on older clusters with a schema validation error. This is not documented in user-facing docs.
 
-**All tools are version-pinned binaries in `./bin/`.** `task tools` must be run before any code generation or linting in a fresh checkout. `go install` is used to install them; there is no lockfile beyond the version suffix in the binary name.
+**All tools are version-pinned binaries in `./bin/`.** `task install` must be run before any code generation or linting in a fresh checkout. `go install` is used to install them; there is no lockfile beyond the version suffix in the binary name.
 
 **`CLAUDE.md` is a symlink to `AGENTS.md`.** Both files contain identical content. This is intentional to serve both Claude Code and other AI agents, but can confuse editors and git operations that follow symlinks.
 

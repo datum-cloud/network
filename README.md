@@ -94,7 +94,7 @@ For a complete walkthrough see the [Getting Started guide](docs/getting-started.
 Install dev tools first:
 
 ```bash
-task tools
+task install
 ```
 
 | Command                       | Description                           |

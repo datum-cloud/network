@@ -13,7 +13,7 @@ Module: `go.datum.net/network`
 This project uses [Task](https://taskfile.dev/) (`task`), not `make`.
 
 ```bash
-task tools        # Install all dev tools into ./bin/ (run first)
+task install        # Install all dev tools into ./bin/ (run first)
 task build        # go fmt + go vet + go build ./...
 task test:unit    # Run unit tests with coverage (excludes /e2e)
 task test:e2e     # Create kind cluster, deploy CRDs, run Chainsaw tests, teardown
@@ -21,6 +21,7 @@ task lint         # golangci-lint + yamlfmt check
 task lint-fix     # Same with auto-fix applied
 task generate     # Regenerate zz_generated.deepcopy.go files
 task manifests    # Regenerate CRD YAML in config/crd/ from Go types
+task docs:generate  # Regenerate docs/api/bgp.md from Go types
 task ci           # Full local pipeline: build → lint → test:unit → test:e2e
 task clean        # Remove ./bin/ and cover.out
 ```
@@ -65,8 +66,9 @@ After changing kubebuilder markers (`// +kubebuilder:...`) or adding new types:
 
 1. `task generate` — regenerates `zz_generated.deepcopy.go`
 2. `task manifests` — regenerates CRDs in `config/crd/`
+3. `task docs:generate` — regenerates `docs/api/bgp.md` from Go types (config in `.crd-ref-docs/config.yaml`)
 
-Both are generated; never edit `zz_generated.deepcopy.go` or CRD YAML directly.
+All three are generated; never edit `zz_generated.deepcopy.go`, CRD YAML, or `docs/api/bgp.md` directly.
 
 ### Testing
 
