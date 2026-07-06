@@ -77,6 +77,7 @@ type BGPVRFInstanceStatus struct {
 	Routers []RouterStatus `json:"routers,omitempty"`
 }
 
+// BGPVRFInstanceList is a list of BGPVRFInstance resources.
 // +kubebuilder:object:root=true
 type BGPVRFInstanceList struct {
 	metav1.TypeMeta `json:",inline"`

@@ -141,7 +141,7 @@ func TestBGPPeerLargePeerASN(t *testing.T) {
 			RouterTarget: RouterTarget{
 				RouterRef: &RouterRef{Name: "test-router"},
 			},
-			PeerASN: int64(maxASN),
+			PeerASN: maxASN,
 			Address: "10.0.0.2",
 			AddressFamilies: []AddressFamily{
 				{AFI: AFIIPv4, SAFI: SAFIUnicast},
@@ -159,7 +159,7 @@ func TestBGPPeerLargePeerASN(t *testing.T) {
 		t.Fatalf("Unmarshal: %v", err)
 	}
 
-	if got.Spec.PeerASN != int64(maxASN) {
+	if got.Spec.PeerASN != maxASN {
 		t.Errorf("PeerASN after round-trip: got %d, want %d", got.Spec.PeerASN, maxASN)
 	}
 }

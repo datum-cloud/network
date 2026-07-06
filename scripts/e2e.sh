@@ -33,7 +33,7 @@ collect_logs() {
 require_tool kind     "go install sigs.k8s.io/kind@latest"
 require_tool kubectl  "https://kubernetes.io/docs/tasks/tools/"
 require_tool task     "https://taskfile.dev/installation/"
-require_tool chainsaw "https://github.com/kyverno/chainsaw/releases/tag/v0.2.12"
+require_tool chainsaw "https://github.com/kyverno/chainsaw/releases/tag/v0.2.15"
 require_tool helm     "https://helm.sh/docs/intro/install/"
 
 E2E_DIR="${REPO_ROOT}/test/e2e"

@@ -1,132 +1,154 @@
-NOTICE for go.datum.net/network
+go.datum.net/network
 
-This product includes software developed by third parties.
-The following components are included in this distribution:
+Copyright © 2025 Datum. All rights reserved.
+
+This product includes software developed at
+Datum (https://github.com/datum-cloud/network).
 
 ================================================================================
-github.com/fxamacker/cbor/v2 v2.7.0
+THIRD-PARTY NOTICES
+
+This product includes or bundles dependencies that are separately licensed.
+The following components are included in this distribution.
+
+================================================================================
+cbor/v2 v2.7.0 (github.com/fxamacker/cbor/v2)
 MIT
 https://github.com/fxamacker/cbor
-================================================================================
+Full license text: licenses/MIT.txt
 
 ================================================================================
-github.com/go-logr/logr v1.4.3
+go-logr v1.4.3 (github.com/go-logr/logr)
 Apache-2.0
 https://github.com/go-logr/logr
-================================================================================
+Full license text: licenses/Apache-2.0.txt
 
 ================================================================================
-github.com/gogo/protobuf v1.3.2
+gogo/protobuf v1.3.2 (github.com/gogo/protobuf)
 BSD-3-Clause
 https://github.com/gogo/protobuf
-================================================================================
+Full license text: licenses/BSD-3-Clause.txt
 
 ================================================================================
-github.com/json-iterator/go v1.1.12
+json-iterator/go v1.1.12 (github.com/json-iterator/go)
 MIT
 https://github.com/json-iterator/go
-================================================================================
+Full license text: licenses/MIT.txt
 
 ================================================================================
-github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
+kr/pretty v0.3.1 (github.com/kr/pretty)
+MIT
+https://github.com/kr/pretty
+Full license text: licenses/MIT.txt
+
+================================================================================
+concurrent (github.com/modern-go/concurrent)
 Apache-2.0
 https://github.com/modern-go/concurrent
-================================================================================
+Full license text: licenses/Apache-2.0.txt
 
 ================================================================================
-github.com/modern-go/reflect2 v1.0.2
+reflect2 v1.0.2 (github.com/modern-go/reflect2)
 Apache-2.0
 https://github.com/modern-go/reflect2
-================================================================================
+Full license text: licenses/Apache-2.0.txt
 
 ================================================================================
-github.com/x448/float16 v0.8.4
+pflag v1.0.6 (github.com/spf13/pflag)
+BSD-3-Clause
+https://github.com/spf13/pflag
+Full license text: licenses/BSD-3-Clause.txt
+
+================================================================================
+float16 v0.8.4 (github.com/x448/float16)
 MIT
 https://github.com/x448/float16
-================================================================================
+Full license text: licenses/MIT.txt
 
 ================================================================================
-go.datum.net/network v0.0.0
-Apache-2.0
-https://github.com/your-organization/network (project)
-================================================================================
+go.datum.net/network (go.datum.net/network)
+AGPL-3.0
+https://github.com/datum-cloud/network
+Full license text: licenses/AGPL-3.0.txt
 
 ================================================================================
-golang.org/x/net v0.51.0
+golang.org/x/net v0.51.0 (golang.org/x/net)
 BSD-3-Clause
 https://cs.opensource.google/go/x/net
-================================================================================
+Full license text: licenses/BSD-3-Clause.txt
 
 ================================================================================
-golang.org/x/sys v0.42.0
+golang.org/x/sys v0.42.0 (golang.org/x/sys)
 BSD-3-Clause
 https://cs.opensource.google/go/x/sys
-================================================================================
+Full license text: licenses/BSD-3-Clause.txt
 
 ================================================================================
-golang.org/x/text v0.34.0
+golang.org/x/text v0.34.0 (golang.org/x/text)
 BSD-3-Clause
 https://cs.opensource.google/go/x/text
-================================================================================
+Full license text: licenses/BSD-3-Clause.txt
 
 ================================================================================
-gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
-BSD-3-Clause
+gocheck v1.0.0 (gopkg.in/check.v1)
+BSD-2-Clause
 https://github.com/go-check/check
-================================================================================
+Full license text: licenses/BSD-2-Clause.txt
 
 ================================================================================
-gopkg.in/inf.v0 v0.9.1
+inf.v0 v0.9.1 (gopkg.in/inf.v0)
 BSD-3-Clause
 https://github.com/go-inf/inf
-================================================================================
+Full license text: licenses/BSD-3-Clause.txt
 
 ================================================================================
-k8s.io/apimachinery v0.33.0
+k8s.io/apimachinery v0.33.0 (k8s.io/apimachinery)
 Apache-2.0
 https://github.com/kubernetes/apimachinery
-================================================================================
+Full license text: licenses/Apache-2.0.txt
 
 ================================================================================
-k8s.io/klog/v2 v2.130.1
+k8s.io/klog/v2 v2.130.1 (k8s.io/klog/v2)
 Apache-2.0
 https://github.com/kubernetes/klog
-================================================================================
+Full license text: licenses/Apache-2.0.txt
 
 ================================================================================
-k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
+k8s.io/utils (k8s.io/utils)
 Apache-2.0
 https://github.com/kubernetes/utils
-================================================================================
+Full license text: licenses/Apache-2.0.txt
 
 ================================================================================
-sigs.k8s.io/controller-runtime v0.21.0
+controller-runtime v0.21.0 (sigs.k8s.io/controller-runtime)
 Apache-2.0
 https://github.com/kubernetes-sigs/controller-runtime
-================================================================================
+Full license text: licenses/Apache-2.0.txt
 
 ================================================================================
-sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3
+sigs.k8s.io/json (sigs.k8s.io/json)
 Apache-2.0
 https://github.com/kubernetes-sigs/json
-================================================================================
+Full license text: licenses/Apache-2.0.txt
 
 ================================================================================
-sigs.k8s.io/randfill v1.0.0
+sigs.k8s.io/randfill v1.0.0 (sigs.k8s.io/randfill)
 Apache-2.0
 https://github.com/kubernetes-sigs/randfill
-================================================================================
+Full license text: licenses/Apache-2.0.txt
 
 ================================================================================
-sigs.k8s.io/structured-merge-diff/v4 v4.6.0
+sigs.k8s.io/structured-merge-diff/v4 v4.6.0 (sigs.k8s.io/structured-merge-diff/v4)
 Apache-2.0
 https://github.com/kubernetes-sigs/structured-merge-diff
-================================================================================
+Full license text: licenses/Apache-2.0.txt
 
 ================================================================================
-sigs.k8s.io/yaml v1.4.0
+sigs.k8s.io/yaml v1.4.0 (sigs.k8s.io/yaml)
 Apache-2.0
 https://github.com/kubernetes-sigs/yaml
+Full license text: licenses/Apache-2.0.txt
+
 ================================================================================
 
 END OF NOTICES

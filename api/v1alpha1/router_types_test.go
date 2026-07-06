@@ -143,7 +143,7 @@ func TestBGPRouterLargeLocalASN(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "large-asn-router"},
 		Spec: BGPRouterSpec{
 			TargetRef: TargetRef{Kind: "Node", Name: "node-1"},
-			LocalASN:  int64(maxASN),
+			LocalASN:  maxASN,
 			RouterID:  "10.0.0.1",
 			Roles:     []RouterRole{RouterRoleTransit},
 			AddressFamilies: []AddressFamily{
@@ -162,7 +162,7 @@ func TestBGPRouterLargeLocalASN(t *testing.T) {
 		t.Fatalf("Unmarshal: %v", err)
 	}
 
-	if got.Spec.LocalASN != int64(maxASN) {
+	if got.Spec.LocalASN != maxASN {
 		t.Errorf("LocalASN after round-trip: got %d, want %d", got.Spec.LocalASN, maxASN)
 	}
 }

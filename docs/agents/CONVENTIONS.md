@@ -275,12 +275,13 @@ Condition type constants (`ConditionTypeReady`, `ConditionTypeAccepted`) are `st
 
 Two generated artifacts — never edit directly:
 
-| Artifact                   | Generator      | Regeneration command |
-|----------------------------|----------------|----------------------|
-| `zz_generated.deepcopy.go` | controller-gen | `task generate`      |
-| `config/crd/*.yaml`        | controller-gen | `task manifests`     |
+| Artifact                   | Generator      | Regeneration command      |
+|----------------------------|----------------|---------------------------|
+| `zz_generated.deepcopy.go` | controller-gen | `task generate:methods`   |
+| `config/crd/*.yaml`        | controller-gen | `task generate:manifests` |
+| `docs/api/bgp.md`          | crd-ref-docs   | `task generate:docs`      |
 
-After changing any kubebuilder markers or adding/removing types: run both `task generate` and `task manifests`.
+After changing any kubebuilder markers or adding/removing types: run `task generate` (executes all three in order).
 
 The copyright/license header for generated files is in `hack/boilerplate.go.txt`.
 
@@ -348,7 +349,7 @@ This is an API-only module — no request path, no controllers. Error handling i
 
 - **The single most important rule**: This is API-only Go. No controllers, no runtime, no logging, no error returns from type methods. Every new file goes in `api/<group>/v1alpha1/` and follows the `_types.go` naming pattern.
 - **ASN fields are always `int64`**. Never `int32`. Max ASN (4294967295) overflows int32. This is a hard invariant — the lint tests would catch it but the schema would silently break.
-- **Never edit `zz_generated.deepcopy.go` or `config/crd/*.yaml`**. Run `task generate` / `task manifests` instead.
+- **Never edit `zz_generated.deepcopy.go` or `config/crd/*.yaml`**. Run `task generate` instead.
 - **YAML files use `.yaml` extension only** — `.yml` fails CI.
 - New CRD resource → one `{resource}_types.go` file in the appropriate `api/<group>/v1alpha1/` package. Shared types used across resources in the same package go in `shared_types.go`.
 - Condition type constants are untyped `string` constants (not a named type), defined in the same file as the resource they describe.
@@ -358,5 +359,5 @@ This is an API-only module — no request path, no controllers. Error handling i
 - **Three most common mistakes to avoid**:
   1. Using `int32` for ASN fields — always use `int64`.
   2. Adding omitempty to required fields or omitting it from optional fields.
-  3. Editing generated files directly instead of updating markers and re-running `task generate` + `task manifests`.
+  3. Editing generated files directly instead of updating markers and re-running `task generate`.
 - Comply with `go fmt` (auto-run by task), `go vet` (`GOOS=linux`), and `golangci-lint` defaults.

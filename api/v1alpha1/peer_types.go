@@ -198,6 +198,7 @@ type BGPPeerStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
+// BGPPeerList is a list of BGPPeer resources.
 // +kubebuilder:object:root=true
 type BGPPeerList struct {
 	metav1.TypeMeta `json:",inline"`

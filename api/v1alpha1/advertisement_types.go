@@ -159,6 +159,7 @@ type BGPAdvertisementStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
+// BGPAdvertisementList is a list of BGPAdvertisement resources.
 // +kubebuilder:object:root=true
 type BGPAdvertisementList struct {
 	metav1.TypeMeta `json:",inline"`
