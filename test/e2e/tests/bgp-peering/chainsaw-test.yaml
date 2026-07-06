@@ -1,0 +1,209 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: bgp-peering
+spec:
+  description: >
+    Verify that BGPPeer resources are accepted by the API server. Creates BGPPeer
+    resources directly (one per node pair) forming a full mesh, then verifies
+    resource count and cleans up.
+  steps:
+    - name: cleanup-stale
+      try:
+        - script:
+            content: |
+              kubectl delete bgppeers -l e2e-test=bgp-peering 2>/dev/null || true
+              echo "OK: stale resources cleaned up"
+
+    - name: resolve-worker-node-ips
+      try:
+        - script:
+            content: |
+              set -e
+              get_ipv6() {
+                kubectl get node "$1" \
+                  -o jsonpath='{range .status.addresses[?(@.type=="InternalIP")]}{.address}{"\n"}{end}' \
+                  | grep ':' | head -1
+              }
+              W1=$(get_ipv6 bgp-e2e-worker)
+              W2=$(get_ipv6 bgp-e2e-worker2)
+              W3=$(get_ipv6 bgp-e2e-worker3)
+              echo "worker1=$W1 worker2=$W2 worker3=$W3"
+
+              # Store for diagnostic reference
+              kubectl create configmap bgp-e2e-node-ips \
+                --from-literal=worker1="${W1}" \
+                --from-literal=worker2="${W2}" \
+                --from-literal=worker3="${W3}" \
+                --dry-run=client -o yaml | kubectl apply -f -
+
+    - name: create-bgp-peers
+      try:
+        - script:
+            content: |
+              set -e
+              get_ipv6() {
+                kubectl get node "$1" \
+                  -o jsonpath='{range .status.addresses[?(@.type=="InternalIP")]}{.address}{"\n"}{end}' \
+                  | grep ':' | head -1
+              }
+              W1=$(get_ipv6 bgp-e2e-worker)
+              W2=$(get_ipv6 bgp-e2e-worker2)
+              W3=$(get_ipv6 bgp-e2e-worker3)
+
+              # One BGPPeer per directional pair in the full mesh.
+              kubectl apply -f - <<EOF
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: BGPPeer
+              metadata:
+                name: e2e-peering-w1-to-w2
+                labels:
+                  e2e-test: bgp-peering
+              spec:
+                routerRef:
+                  name: bgp-e2e-worker
+                address: "${W2}"
+                peerASN: 65000
+                addressFamilies:
+                  - afi: ipv6
+                    safi: unicast
+                holdTime: 30s
+                keepaliveTime: 10s
+              ---
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: BGPPeer
+              metadata:
+                name: e2e-peering-w1-to-w3
+                labels:
+                  e2e-test: bgp-peering
+              spec:
+                routerRef:
+                  name: bgp-e2e-worker
+                address: "${W3}"
+                peerASN: 65000
+                addressFamilies:
+                  - afi: ipv6
+                    safi: unicast
+                holdTime: 30s
+                keepaliveTime: 10s
+              ---
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: BGPPeer
+              metadata:
+                name: e2e-peering-w2-to-w1
+                labels:
+                  e2e-test: bgp-peering
+              spec:
+                routerRef:
+                  name: bgp-e2e-worker2
+                address: "${W1}"
+                peerASN: 65000
+                addressFamilies:
+                  - afi: ipv6
+                    safi: unicast
+                holdTime: 30s
+                keepaliveTime: 10s
+              ---
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: BGPPeer
+              metadata:
+                name: e2e-peering-w2-to-w3
+                labels:
+                  e2e-test: bgp-peering
+              spec:
+                routerRef:
+                  name: bgp-e2e-worker2
+                address: "${W3}"
+                peerASN: 65000
+                addressFamilies:
+                  - afi: ipv6
+                    safi: unicast
+                holdTime: 30s
+                keepaliveTime: 10s
+              ---
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: BGPPeer
+              metadata:
+                name: e2e-peering-w3-to-w1
+                labels:
+                  e2e-test: bgp-peering
+              spec:
+                routerRef:
+                  name: bgp-e2e-worker3
+                address: "${W1}"
+                peerASN: 65000
+                addressFamilies:
+                  - afi: ipv6
+                    safi: unicast
+                holdTime: 30s
+                keepaliveTime: 10s
+              ---
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: BGPPeer
+              metadata:
+                name: e2e-peering-w3-to-w2
+                labels:
+                  e2e-test: bgp-peering
+              spec:
+                routerRef:
+                  name: bgp-e2e-worker3
+                address: "${W2}"
+                peerASN: 65000
+                addressFamilies:
+                  - afi: ipv6
+                    safi: unicast
+                holdTime: 30s
+                keepaliveTime: 10s
+              EOF
+
+    - name: assert-bgppeers-reconciled
+      try:
+        - script:
+            content: |
+              set -e
+              ATTEMPTS=0
+              COUNT=0
+              while [ "$COUNT" -lt 6 ] && [ "$ATTEMPTS" -lt 36 ]; do
+                COUNT=$(kubectl get bgppeers \
+                  -l e2e-test=bgp-peering \
+                  --no-headers 2>/dev/null | wc -l)
+                ATTEMPTS=$((ATTEMPTS+1))
+                [ "$COUNT" -lt 6 ] && sleep 5
+              done
+              if [ "$COUNT" -lt 6 ]; then
+                echo "ERROR: only $COUNT/6 BGPPeers found after ${ATTEMPTS} attempts"
+                kubectl get bgppeers -o wide || true
+                exit 1
+              fi
+              echo "OK: $COUNT BGPPeers present"
+
+      finally:
+        - script:
+            content: |
+              kubectl delete bgppeers -l e2e-test=bgp-peering 2>/dev/null || true
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: ConfigMap
+              name: bgp-e2e-node-ips
+
+    - name: assert-peers-cleaned-up
+      try:
+        - script:
+            content: |
+              set -e
+              ATTEMPTS=0
+              COUNT=1
+              while [ "$COUNT" -gt 0 ] && [ "$ATTEMPTS" -lt 30 ]; do
+                COUNT=$(kubectl get bgppeers \
+                  -l e2e-test=bgp-peering \
+                  --no-headers 2>/dev/null | wc -l)
+                ATTEMPTS=$((ATTEMPTS+1))
+                [ "$COUNT" -gt 0 ] && sleep 5
+              done
+              if [ "$COUNT" -gt 0 ]; then
+                echo "ERROR: $COUNT BGPPeers still exist after deletion"
+                kubectl get bgppeers -o wide || true
+                exit 1
+              fi
+              echo "OK: all BGPPeers cleaned up"

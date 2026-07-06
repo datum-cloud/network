@@ -1,0 +1,115 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: bgp-advertisement
+spec:
+  description: >
+    Verify that BGPAdvertisement resources are accepted by the API server.
+    Also verifies that deleting the advertisement removes it cleanly.
+  steps:
+    - name: cleanup-stale
+      try:
+        - script:
+            content: |
+              kubectl delete bgppeers -l e2e-test=bgp-advertisement 2>/dev/null || true
+              kubectl delete bgpadvertisement e2e-test-prefix 2>/dev/null || true
+              echo "OK: stale resources cleaned up"
+
+    - name: setup-peers
+      try:
+        - script:
+            content: |
+              set -e
+              get_ipv6() {
+                kubectl get node "$1" \
+                  -o jsonpath='{range .status.addresses[?(@.type=="InternalIP")]}{.address}{"\n"}{end}' \
+                  | grep ':' | head -1
+              }
+              W1=$(get_ipv6 bgp-e2e-worker)
+              W2=$(get_ipv6 bgp-e2e-worker2)
+
+              kubectl apply -f - <<EOF
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: BGPPeer
+              metadata:
+                name: e2e-adv-w1-to-w2
+                labels:
+                  e2e-test: bgp-advertisement
+              spec:
+                routerRef:
+                  name: bgp-e2e-worker
+                address: "${W2}"
+                peerASN: 65000
+                addressFamilies:
+                  - afi: ipv6
+                    safi: unicast
+                holdTime: 30s
+                keepaliveTime: 10s
+              ---
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: BGPPeer
+              metadata:
+                name: e2e-adv-w2-to-w1
+                labels:
+                  e2e-test: bgp-advertisement
+              spec:
+                routerRef:
+                  name: bgp-e2e-worker2
+                address: "${W1}"
+                peerASN: 65000
+                addressFamilies:
+                  - afi: ipv6
+                    safi: unicast
+                holdTime: 30s
+                keepaliveTime: 10s
+              EOF
+
+    - name: create-bgp-advertisement
+      try:
+        - apply:
+            resource:
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: BGPAdvertisement
+              metadata:
+                name: e2e-test-prefix
+              spec:
+                routerRef:
+                  name: bgp-e2e-worker
+                addressFamily:
+                  afi: ipv6
+                  safi: unicast
+                prefixes:
+                  - "2001:db8:e2e::/48"
+
+    - name: assert-advertisement-accepted
+      try:
+        - assert:
+            resource:
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: BGPAdvertisement
+              metadata:
+                name: e2e-test-prefix
+              (metadata.name): e2e-test-prefix
+
+    - name: delete-advertisement
+      try:
+        - delete:
+            ref:
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: BGPAdvertisement
+              name: e2e-test-prefix
+        - script:
+            content: |
+              set -e
+              ATTEMPTS=0
+              while kubectl get bgpadvertisement e2e-test-prefix 2>/dev/null; do
+                ATTEMPTS=$((ATTEMPTS+1))
+                [ "$ATTEMPTS" -ge 30 ] && echo "ERROR: advertisement still exists" && exit 1
+                sleep 2
+              done
+              echo "OK: BGPAdvertisement deleted"
+
+      finally:
+        - script:
+            content: |
+              kubectl delete bgppeers -l e2e-test=bgp-advertisement 2>/dev/null || true
