@@ -17,13 +17,14 @@ task install        # Install all dev tools into ./bin/ (run first)
 task build        # go fmt + go vet + go build ./...
 task test:unit    # Run unit tests with coverage (excludes /e2e)
 task test:e2e     # Create kind cluster, deploy CRDs, run Chainsaw tests, teardown
-task lint         # golangci-lint + yamlfmt check
-task lint-fix     # Same with auto-fix applied
-task generate     # Regenerate zz_generated.deepcopy.go files
-task manifests    # Regenerate CRD YAML in config/crd/ from Go types
-task docs:generate  # Regenerate docs/api/bgp.md from Go types
-task ci           # Full local pipeline: build → lint → test:unit → test:e2e
-task clean        # Remove ./bin/ and cover.out
+task lint             # golangci-lint + yamlfmt check
+task lint-fix         # Same with auto-fix applied
+task generate         # Run all generators (methods, manifests, docs)
+task generate:methods   # Regenerate zz_generated.deepcopy.go files
+task generate:manifests # Regenerate CRD YAML in config/crd/ from Go types
+task generate:docs    # Regenerate docs/api/bgp.md from Go types
+task ci               # Full local pipeline: build → lint → test:unit → test:e2e
+task clean            # Remove ./bin/ and cover.out
 ```
 
 Run a single unit test package:
@@ -59,16 +60,17 @@ The `RouterTarget` struct (in `shared_types.go`) is embedded by resources that s
 - **Kubernetes 1.28+ required** — CEL functions `isIP()` and `isCIDR()` are used for field validation.
 - **Status conditions** follow `metav1.Condition` conventions. Condition type constants (e.g., `ConditionTypeReady`, `ConditionTypeAccepted`) are defined alongside the resource type they belong to.
 - **YAML files must use `.yaml` extension**, never `.yml` — the lint task enforces this.
+- **Never hand-edit generated files** — `docs/api/bgp.md`, `config/crd/*.yaml`, and `zz_generated.deepcopy.go` are all generated. Always regenerate via `task generate` (or the individual `generate:methods`, `generate:manifests`, `generate:docs` targets). Editing them directly will be overwritten and drifts from source of truth.
 
 ### Code generation
 
 After changing kubebuilder markers (`// +kubebuilder:...`) or adding new types:
 
-1. `task generate` — regenerates `zz_generated.deepcopy.go`
-2. `task manifests` — regenerates CRDs in `config/crd/`
-3. `task docs:generate` — regenerates `docs/api/bgp.md` from Go types (config in `.crd-ref-docs/config.yaml`)
+1. `task generate:methods` — regenerates `zz_generated.deepcopy.go`
+2. `task generate:manifests` — regenerates CRDs in `config/crd/`
+3. `task generate:docs` — regenerates `docs/api/bgp.md` from Go types (config in `.crd-ref-docs/config.yaml`)
 
-All three are generated; never edit `zz_generated.deepcopy.go`, CRD YAML, or `docs/api/bgp.md` directly.
+Or run `task generate` to execute all three in order. All three are generated; never edit `zz_generated.deepcopy.go`, CRD YAML, or `docs/api/bgp.md` directly.
 
 ### Testing
 

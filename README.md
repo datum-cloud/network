@@ -101,11 +101,10 @@ task install
 |-------------------------------|---------------------------------------|
 | `task build`                  | `go fmt` + `go vet` + `go build`      |
 | `task test:unit`              | Unit tests with coverage              |
-| `task test:e2e`               | Kind cluster + Chainsaw e2e suite     |
-| `task lint` / `task lint-fix` | golangci-lint + yamlfmt               |
-| `task generate`               | Regenerate `zz_generated.deepcopy.go` |
-| `task manifests`              | Regenerate CRD YAML in `config/crd/`  |
-| `task ci`                     | Full pipeline: build → lint → test    |
+| `task test:e2e`               | Kind cluster + Chainsaw e2e suite      |
+| `task lint` / `task lint-fix` | golangci-lint + yamlfmt                |
+| `task generate`               | Run all generators (methods, manifests, docs) |
+| `task ci`                     | Full pipeline: build → lint → test     |
 
 ---
 

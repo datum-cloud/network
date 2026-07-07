@@ -365,7 +365,7 @@ Renovate runs weekly (Monday before 6am ET). k8s core libraries update monthly. 
 | Modifying shared types used across resources | `api/v1alpha1/shared_types.go`                                                                    |
 | Status condition constants                   | Defined in the same file as the resource (e.g., `ConditionTypeReady` is in `peer_types.go`)           |
 | Running tests locally                        | `task test:unit` (unit) or `task test:e2e` (e2e, requires Docker)                                     |
-| Regenerating CRDs after marker changes       | `task generate && task manifests`                                                                      |
+| Regenerating CRDs after marker changes       | `task generate` (runs methods, manifests, docs)                                                        |
 
 **Patterns that differ from Go idioms:**
 - `init()` functions are used extensively to register types with the scheme builder. This is a Kubernetes operator convention, not general Go style.
@@ -373,7 +373,7 @@ Renovate runs weekly (Monday before 6am ET). k8s core libraries update monthly. 
 - No error returns from type methods — status updates use the Kubernetes condition pattern instead.
 
 **Gotchas:**
-- After any change to `// +kubebuilder:...` markers, both `task generate` and `task manifests` must be run. Forgetting one leaves the code and CRD YAML out of sync.
+- After any change to `// +kubebuilder:...` markers, run `task generate`. It executes methods, manifests, and docs in order.
 - `GOOS=linux` is required when running `go vet` or `go test` locally (the task targets set this). Some types have Linux-specific constraints.
 - `CLAUDE.md` is a symlink. Edit `AGENTS.md` directly; attempts to edit through the symlink will fail.
 - The VRF `BGPVRFInstanceStatus.Routers` field uses `+listType=map +listMapKey=routerName` — different from the standard `+listMapKey=type` used for conditions.
