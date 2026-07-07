@@ -90,7 +90,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dev tools
-        run: task install
+        run: task install:golangci-lint install:yamlfmt
 
       - name: Lint
         run: task lint
