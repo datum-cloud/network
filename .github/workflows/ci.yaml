@@ -118,7 +118,12 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dev tools
-        run: task install
+        run: |
+          task install:chainsaw
+          go install sigs.k8s.io/kind@latest
+          helm repo add cilium https://helm.cilium.io/
 
       - name: Run E2E suite
-        run: task test:e2e
+        run: |
+          export PATH="$GITHUB_WORKSPACE/bin:$PATH"
+          task test:e2e
