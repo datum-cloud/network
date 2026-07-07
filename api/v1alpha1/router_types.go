@@ -98,6 +98,7 @@ type BGPRouterPeerSummary struct {
 	Established int32 `json:"established"`
 }
 
+// BGPRouterList is a list of BGPRouter resources.
 // +kubebuilder:object:root=true
 type BGPRouterList struct {
 	metav1.TypeMeta `json:",inline"`

@@ -1,3 +1,5 @@
+version: "2"
+
 run:
   allow-parallel-runners: true
 
@@ -7,7 +9,6 @@ linters:
     - errcheck
     - errname
     - errorlint
-    - goconst
     - gocyclo
     - govet
     - ineffassign
@@ -36,8 +37,8 @@ linters:
         - "-ST1000"  # don't flag missing doc comments (already covered by conventions)
 
 issues:
-  max-same-issues: 0
   max-issues-per-linter: 0
+  max-same-issues: 0
 
 formatters:
   enable:

@@ -365,6 +365,7 @@ type BGPPolicyStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
+// BGPPolicyList is a list of BGPPolicy resources.
 // +kubebuilder:object:root=true
 type BGPPolicyList struct {
 	metav1.TypeMeta `json:",inline"`
