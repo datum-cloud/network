@@ -11,10 +11,12 @@ vars:
   CONTROLLER_GEN: '{{.LOCALBIN}}/controller-gen'
   CHAINSAW: '{{.LOCALBIN}}/chainsaw'
   YAMLFMT: '{{.LOCALBIN}}/yamlfmt'
+  CRD_REF_DOCS: '{{.LOCALBIN}}/crd-ref-docs'
   GOLANGCI_LINT_VERSION: v2.1.6
   CONTROLLER_GEN_VERSION: v0.18.0
-  CHAINSAW_VERSION: v0.2.12
+  CHAINSAW_VERSION: v0.2.15
   YAMLFMT_VERSION: v0.21.0
+  CRD_REF_DOCS_VERSION: v0.2.0
 
 tasks:
   default:
@@ -52,7 +54,7 @@ tasks:
 
   lint:
     desc: Run golangci-lint, yamlfmt, and yaml extension check
-    deps: [tools:golangci-lint, tools:yamlfmt]
+    deps: [install:golangci-lint, install:yamlfmt]
     cmds:
       - '{{.GOLANGCI_LINT}} run'
       - '{{.YAMLFMT}} -lint ./...'
@@ -69,7 +71,7 @@ tasks:
 
   lint-fix:
     desc: Run golangci-lint and yamlfmt with fixes
-    deps: [tools:golangci-lint, tools:yamlfmt]
+    deps: [install:golangci-lint, install:yamlfmt]
     cmds:
       - '{{.GOLANGCI_LINT}} run --fix'
       - '{{.YAMLFMT}} ./...'
@@ -89,23 +91,37 @@ tasks:
   ##
 
   generate:
+    desc: Run all code generators (methods, manifests, docs)
+    cmds:
+      - task: generate:methods
+      - task: generate:manifests
+      - task: generate:docs
+
+  generate:methods:
     desc: Generate deepcopy methods
-    deps: [tools:controller-gen]
+    deps: [install:controller-gen]
     cmds:
       - '{{.CONTROLLER_GEN}} object:headerFile="hack/boilerplate.go.txt" paths="./..."'
 
-  manifests:
+  generate:manifests:
     desc: Generate CRD manifests
-    deps: [tools:controller-gen]
+    deps: [install:controller-gen]
     cmds:
       - '{{.CONTROLLER_GEN}} crd paths="./api/..." output:crd:artifacts:config=config/crd'
+
+  generate:docs:
+    desc: Generate API reference documentation
+    deps: [install:crd-ref-docs]
+    cmds:
+      - rm -rf docs/api && mkdir -p docs/api
+      - '{{.CRD_REF_DOCS}} --renderer=markdown --source-path=api/v1alpha1 --output-path=docs/api/bgp.md --config=.crd-ref-docs.yaml'
 
   ##
   ## Testing
   ##
 
   ci:
-    desc: Run the full CI pipeline locally (build, lint, unit tests, and e2e)
+    desc: Run the full CI pipeline locally
     cmds:
       - task: build
       - task: lint
@@ -113,7 +129,7 @@ tasks:
       - task: test:e2e
 
   test:e2e:
-    desc: Run the full E2E suite (create cluster, deploy, test, teardown)
+    desc: Run the full E2E suite
     cmds:
       - scripts/e2e.sh
 
@@ -131,11 +147,11 @@ tasks:
   ## Dependencies
   ##
 
-  tools:
+  install:
     desc: Install all development tools
-    deps: [tools:golangci-lint, tools:controller-gen, tools:chainsaw, tools:yamlfmt]
+    deps: [install:golangci-lint, install:controller-gen, install:chainsaw, install:yamlfmt, install:crd-ref-docs]
 
-  tools:golangci-lint:
+  install:golangci-lint:
     desc: Download golangci-lint locally if necessary
     run: once
     cmds:
@@ -145,7 +161,7 @@ tasks:
           PACKAGE: github.com/golangci/golangci-lint/v2/cmd/golangci-lint
           VERSION: '{{.GOLANGCI_LINT_VERSION}}'
 
-  tools:controller-gen:
+  install:controller-gen:
     desc: Download controller-gen locally if necessary
     run: once
     cmds:
@@ -155,7 +171,7 @@ tasks:
           PACKAGE: sigs.k8s.io/controller-tools/cmd/controller-gen
           VERSION: '{{.CONTROLLER_GEN_VERSION}}'
 
-  tools:chainsaw:
+  install:chainsaw:
     desc: Download chainsaw locally if necessary
     run: once
     cmds:
@@ -165,7 +181,7 @@ tasks:
           PACKAGE: github.com/kyverno/chainsaw
           VERSION: '{{.CHAINSAW_VERSION}}'
 
-  tools:yamlfmt:
+  install:yamlfmt:
     desc: Download yamlfmt locally if necessary
     run: once
     cmds:
@@ -174,6 +190,16 @@ tasks:
           TARGET: '{{.YAMLFMT}}'
           PACKAGE: github.com/google/yamlfmt/cmd/yamlfmt
           VERSION: '{{.YAMLFMT_VERSION}}'
+
+  install:crd-ref-docs:
+    desc: Download crd-ref-docs locally if necessary
+    run: once
+    cmds:
+      - task: install-tool
+        vars:
+          TARGET: '{{.CRD_REF_DOCS}}'
+          PACKAGE: github.com/elastic/crd-ref-docs
+          VERSION: '{{.CRD_REF_DOCS_VERSION}}'
 
   install-tool:
     internal: true

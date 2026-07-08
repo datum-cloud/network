@@ -348,7 +348,7 @@ Renovate runs weekly (Monday before 6am ET). k8s core libraries update monthly. 
 
 **Kubernetes 1.28+ hard requirement.** CEL functions `isIP()` and `isCIDR()` require Kubernetes 1.28+. The CRDs will fail to install on older clusters with a schema validation error. This is not documented in user-facing docs.
 
-**All tools are version-pinned binaries in `./bin/`.** `task tools` must be run before any code generation or linting in a fresh checkout. `go install` is used to install them; there is no lockfile beyond the version suffix in the binary name.
+**All tools are version-pinned binaries in `./bin/`.** `task install` must be run before any code generation or linting in a fresh checkout. `go install` is used to install them; there is no lockfile beyond the version suffix in the binary name.
 
 **`CLAUDE.md` is a symlink to `AGENTS.md`.** Both files contain identical content. This is intentional to serve both Claude Code and other AI agents, but can confuse editors and git operations that follow symlinks.
 
@@ -365,7 +365,7 @@ Renovate runs weekly (Monday before 6am ET). k8s core libraries update monthly. 
 | Modifying shared types used across resources | `api/v1alpha1/shared_types.go`                                                                    |
 | Status condition constants                   | Defined in the same file as the resource (e.g., `ConditionTypeReady` is in `peer_types.go`)           |
 | Running tests locally                        | `task test:unit` (unit) or `task test:e2e` (e2e, requires Docker)                                     |
-| Regenerating CRDs after marker changes       | `task generate && task manifests`                                                                      |
+| Regenerating CRDs after marker changes       | `task generate` (runs methods, manifests, docs)                                                        |
 
 **Patterns that differ from Go idioms:**
 - `init()` functions are used extensively to register types with the scheme builder. This is a Kubernetes operator convention, not general Go style.
@@ -373,7 +373,7 @@ Renovate runs weekly (Monday before 6am ET). k8s core libraries update monthly. 
 - No error returns from type methods — status updates use the Kubernetes condition pattern instead.
 
 **Gotchas:**
-- After any change to `// +kubebuilder:...` markers, both `task generate` and `task manifests` must be run. Forgetting one leaves the code and CRD YAML out of sync.
+- After any change to `// +kubebuilder:...` markers, run `task generate`. It executes methods, manifests, and docs in order.
 - `GOOS=linux` is required when running `go vet` or `go test` locally (the task targets set this). Some types have Linux-specific constraints.
 - `CLAUDE.md` is a symlink. Edit `AGENTS.md` directly; attempts to edit through the symlink will fail.
 - The VRF `BGPVRFInstanceStatus.Routers` field uses `+listType=map +listMapKey=routerName` — different from the standard `+listMapKey=type` used for conditions.

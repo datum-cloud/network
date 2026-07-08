@@ -19,14 +19,20 @@ tasks:
   cluster-create:
     desc: Create the kind cluster for E2E tests
     cmds:
-      # Increase inotify limits for file-watching components
-      - sudo sysctl -w fs.inotify.max_user_instances=8192 fs.inotify.max_user_watches=524288 || true
       - kind create cluster
           --name {{.CLUSTER_NAME}}
           --config {{.KIND_CONFIG}}
           --image {{.KIND_IMAGE}}
           --kubeconfig {{.KUBECONFIG}}
           --wait 120s
+    status:
+      - kind get clusters | grep -q {{.CLUSTER_NAME}}
+
+  cluster-create-devcontainer:
+    desc: Patch kind cluster for Docker-outside-of-Docker devcontainers
+    cmds:
+      # Increase inotify limits for file-watching components
+      - sudo sysctl -w fs.inotify.max_user_instances=8192 fs.inotify.max_user_watches=524288 || true
       # In Docker-outside-of-Docker devcontainers the API server port binding maps
       # to the host machine, not the devcontainer. Patch the kubeconfig server URL
       # to use the control-plane container's IP on the kind Docker bridge network.
@@ -41,8 +47,6 @@ tasks:
       - |
         CONTAINER_ID=$(cat /proc/self/cgroup 2>/dev/null | grep -o 'docker/[a-f0-9]*' | head -1 | cut -d/ -f2 || hostname)
         docker network connect kind "${CONTAINER_ID}" 2>/dev/null || true
-    status:
-      - kind get clusters | grep -q {{.CLUSTER_NAME}}
 
   cluster-delete:
     desc: Delete the E2E kind cluster
