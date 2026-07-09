@@ -217,3 +217,64 @@ func TestBGPRouterDeepCopyLocalASN(t *testing.T) {
 		t.Errorf("LocalASN mutated: got %d, want 654321", orig.Spec.LocalASN)
 	}
 }
+
+// TestBGPRouterJSONRoundTripSRv6Locator verifies that SRv6Locator survives
+// JSON marshal/unmarshal.
+func TestBGPRouterJSONRoundTripSRv6Locator(t *testing.T) {
+	orig := newTestRouter(RouterRoleFabric)
+	orig.Spec.SRv6Locator = "2001:db8:ff01::/48"
+
+	data, err := json.Marshal(orig)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var got BGPRouter
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if got.Spec.SRv6Locator != orig.Spec.SRv6Locator {
+		t.Errorf("SRv6Locator: got %q, want %q", got.Spec.SRv6Locator, orig.Spec.SRv6Locator)
+	}
+}
+
+// TestBGPRouterSRv6LocatorFieldName verifies the JSON key is "srv6Locator".
+func TestBGPRouterSRv6LocatorFieldName(t *testing.T) {
+	orig := newTestRouter(RouterRoleFabric)
+	orig.Spec.SRv6Locator = "2001:db8:ff01::/48"
+
+	data, err := json.Marshal(orig.Spec)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if raw, ok := m["srv6Locator"]; !ok || raw != "2001:db8:ff01::/48" {
+		t.Errorf("unexpected srv6Locator value: %v", raw)
+	}
+}
+
+// TestBGPRouterSRv6LocatorOmitEmpty verifies that a router without a
+// SRv6Locator omits the "srv6Locator" key from JSON output.
+func TestBGPRouterSRv6LocatorOmitEmpty(t *testing.T) {
+	orig := newTestRouter(RouterRoleFabric)
+
+	data, err := json.Marshal(orig.Spec)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if _, ok := m["srv6Locator"]; ok {
+		t.Error("expected \"srv6Locator\" key to be absent when empty")
+	}
+}
