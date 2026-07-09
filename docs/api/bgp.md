@@ -625,6 +625,7 @@ _Appears in:_
 | `localASN` _integer_ | LocalASN is the BGP Autonomous System Number for this router.<br />Must be a valid 2-byte or 4-byte ASN per RFC 6793. |  | Minimum: 1 <br />Required: \{\} <br /> |
 | `routerID` _string_ | RouterID is a unique 32-bit identifier expressed in IPv4 dotted-decimal notation.<br />In an IPv6-only underlay this is a logical identifier only. |  | Format: ipv4 <br />Required: \{\} <br /> |
 | `addressFamilies` _[AddressFamily](#addressfamily) array_ | AddressFamilies defines the address families this router activates. |  | MinItems: 1 <br /> |
+| `srv6Locator` _string_ | SRv6Locator is the SRv6 locator block this router owns, expressed as an<br />IPv6 CIDR (e.g. "2001:db8:ff01::/48"). Individual SRv6 endpoint SIDs are<br />host addresses within this block. |  |  |
 
 
 #### BGPRouterStatus

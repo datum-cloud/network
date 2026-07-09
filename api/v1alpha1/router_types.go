@@ -61,6 +61,14 @@ type BGPRouterSpec struct {
 	// AddressFamilies defines the address families this router activates.
 	// +kubebuilder:validation:MinItems=1
 	AddressFamilies []AddressFamily `json:"addressFamilies"`
+
+	// SRv6Locator is the SRv6 locator block this router owns, expressed as an
+	// IPv6 CIDR (e.g. "2001:db8:ff01::/48"). Individual SRv6 endpoint SIDs are
+	// host addresses within this block.
+	// +kubebuilder:validation:XValidation:rule="isCIDR(self)",message="srv6Locator must be a valid CIDR"
+	// +kubebuilder:validation:XValidation:rule="self.contains(':')",message="srv6Locator must be an IPv6 CIDR"
+	// +optional
+	SRv6Locator string `json:"srv6Locator,omitempty"`
 }
 
 // BGPRouterStatus defines the observed state of a BGPRouter.
