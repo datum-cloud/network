@@ -513,6 +513,63 @@ func TestBGPPeerNewFieldsJSONKeys(t *testing.T) {
 	}
 }
 
+// TestBGPPeerRemotePortJSONRoundTrip verifies that RemotePort survives JSON
+// serialization and deserialization, including the unset (nil) case.
+func TestBGPPeerRemotePortJSONRoundTrip(t *testing.T) {
+	peer := newTestPeer()
+	port := int32(1179)
+	peer.Spec.RemotePort = &port
+
+	data, err := json.Marshal(peer)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var got BGPPeer
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if got.Spec.RemotePort == nil || *got.Spec.RemotePort != port {
+		t.Errorf("RemotePort: got %v, want %d", got.Spec.RemotePort, port)
+	}
+}
+
+// TestBGPPeerRemotePortOmittedWhenNil verifies that an unset RemotePort is
+// omitted from the marshaled JSON rather than serialized as 0.
+func TestBGPPeerRemotePortOmittedWhenNil(t *testing.T) {
+	peer := newTestPeer()
+
+	data, err := json.Marshal(peer.Spec)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if _, ok := m["remotePort"]; ok {
+		t.Error("expected \"remotePort\" to be omitted when unset")
+	}
+}
+
+// TestBGPPeerRemotePortDeepCopy verifies DeepCopy produces an independent
+// pointer for RemotePort.
+func TestBGPPeerRemotePortDeepCopy(t *testing.T) {
+	peer := newTestPeer()
+	port := int32(179)
+	peer.Spec.RemotePort = &port
+
+	copied := peer.DeepCopy()
+	*copied.Spec.RemotePort = 1179
+
+	if *peer.Spec.RemotePort != 179 {
+		t.Errorf("RemotePort mutated via copy: got %d, want 179", *peer.Spec.RemotePort)
+	}
+}
+
 // TestBGPPeerNewFieldsDeepCopy verifies DeepCopy handles the new fields correctly.
 func TestBGPPeerNewFieldsDeepCopy(t *testing.T) {
 	peer := &BGPPeer{

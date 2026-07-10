@@ -382,6 +382,11 @@ func (in *BGPPeerList) DeepCopyObject() runtime.Object {
 func (in *BGPPeerSpec) DeepCopyInto(out *BGPPeerSpec) {
 	*out = *in
 	in.RouterTarget.DeepCopyInto(&out.RouterTarget)
+	if in.RemotePort != nil {
+		in, out := &in.RemotePort, &out.RemotePort
+		*out = new(int32)
+		**out = **in
+	}
 	if in.AuthSecretRef != nil {
 		in, out := &in.AuthSecretRef, &out.AuthSecretRef
 		*out = new(LocalSecretRef)
