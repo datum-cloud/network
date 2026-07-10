@@ -351,6 +351,7 @@ _Appears in:_
 | `routerSelector` _[RouterSelector](#routerselector)_ | RouterSelector targets one or more BGPRouters by label.<br />Mutually exclusive with routerRef. |  |  |
 | `peerASN` _integer_ | PeerASN is the remote AS number. |  | Minimum: 1 <br />Required: \{\} <br /> |
 | `address` _string_ | Address is the remote peer's IPv4 or IPv6 address. |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `remotePort` _integer_ | RemotePort is the TCP port used to establish the BGP session with<br />this peer. Defaults to 179 (the IANA-assigned BGP port) if unset. |  | Maximum: 65535 <br />Minimum: 1 <br /> |
 | `description` _string_ | Description is a human-readable label for this peer (e.g., "spine-1"). |  |  |
 | `authSecretRef` _[LocalSecretRef](#localsecretref)_ | AuthSecretRef references a Secret in the same namespace containing the<br />MD5 TCP authentication password under the key "password". |  |  |
 | `addressFamilies` _[AddressFamily](#addressfamily) array_ | AddressFamilies defines the address families negotiated on this session. |  | MinItems: 1 <br /> |

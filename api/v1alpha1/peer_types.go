@@ -88,6 +88,13 @@ type BGPPeerSpec struct {
 	// +kubebuilder:validation:XValidation:rule="isIP(self)",message="address must be a valid IPv4 or IPv6 address"
 	Address string `json:"address"`
 
+	// RemotePort is the TCP port used to establish the BGP session with
+	// this peer. Defaults to 179 (the IANA-assigned BGP port) if unset.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	RemotePort *int32 `json:"remotePort,omitempty"`
+
 	// Description is a human-readable label for this peer (e.g., "spine-1").
 	// +optional
 	Description string `json:"description,omitempty"`

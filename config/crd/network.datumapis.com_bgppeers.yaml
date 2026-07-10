@@ -239,6 +239,14 @@ spec:
                 format: int64
                 minimum: 1
                 type: integer
+              remotePort:
+                description: |-
+                  RemotePort is the TCP port used to establish the BGP session with
+                  this peer. Defaults to 179 (the IANA-assigned BGP port) if unset.
+                format: int32
+                maximum: 65535
+                minimum: 1
+                type: integer
               removePrivateAS:
                 description: |-
                   RemovePrivateAS strips private AS numbers (64512-65535, 4200000000-4294967294)
