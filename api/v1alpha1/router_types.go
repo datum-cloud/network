@@ -69,6 +69,14 @@ type BGPRouterSpec struct {
 	// +kubebuilder:validation:XValidation:rule="self.contains(':')",message="srv6Locator must be an IPv6 CIDR"
 	// +optional
 	SRv6Locator string `json:"srv6Locator,omitempty"`
+
+	// NodeID is this router's 8-bit slot within its PoP's SRv6Locator block,
+	// used for RFC 9800 NEXT-CSID compression. Unique within the PoP.
+	// Values 0 and 255 are reserved.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=254
+	// +optional
+	NodeID int32 `json:"nodeID,omitempty"`
 }
 
 // BGPRouterStatus defines the observed state of a BGPRouter.

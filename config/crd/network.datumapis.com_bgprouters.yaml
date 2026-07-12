@@ -105,6 +105,15 @@ spec:
                 format: int64
                 minimum: 1
                 type: integer
+              nodeID:
+                description: |-
+                  NodeID is this router's 8-bit slot within its PoP's SRv6Locator block,
+                  used for RFC 9800 NEXT-CSID compression. Unique within the PoP.
+                  Values 0 and 255 are reserved.
+                format: int32
+                maximum: 254
+                minimum: 1
+                type: integer
               roles:
                 description: |-
                   Roles describes the functional roles this router participates in.

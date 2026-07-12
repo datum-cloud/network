@@ -100,6 +100,15 @@ spec:
                 x-kubernetes-validations:
                 - message: community must be in ASN:NN or IP:NN format
                   rule: self.all(c, c.matches('^[0-9]{1,10}:[0-9]{1,10}$') || c.matches('^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}:[0-9]{1,10}$'))
+              function:
+                description: |-
+                  Function is the RFC 8986 SRv6 endpoint behavior applied when this
+                  advertisement originates a compressed uSID. Required when VRFID is set.
+                enum:
+                - End.DT4
+                - End.DT6
+                - End.DT46
+                type: string
               localPreference:
                 description: |-
                   LocalPreference sets the default BGP LOCAL_PREF attribute for all advertised prefixes.
@@ -191,6 +200,15 @@ spec:
                 required:
                 - name
                 type: object
+              vrfID:
+                description: |-
+                  VRFID is the 16-bit PoP-local VRF identifier this advertisement's SRv6
+                  SID resolves into, per RFC 9800 uSID Argument addressing. Required when
+                  Function is set.
+                format: int32
+                maximum: 65535
+                minimum: 1
+                type: integer
             required:
             - addressFamily
             - routerRef

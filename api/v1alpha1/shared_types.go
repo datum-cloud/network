@@ -37,6 +37,24 @@ type AddressFamily struct {
 	SAFI SAFI `json:"safi"`
 }
 
+// SRv6Function is the RFC 8986 endpoint behavior applied to a decapsulated
+// SRv6 packet, addressed via the uSID Argument space per RFC 9800.
+//
+// +kubebuilder:validation:Enum=End.DT4;End.DT6;End.DT46
+type SRv6Function string
+
+const (
+	// SRv6FunctionEndDT4 decapsulates and looks up the packet in an IPv4 VRF.
+	SRv6FunctionEndDT4 SRv6Function = "End.DT4"
+
+	// SRv6FunctionEndDT6 decapsulates and looks up the packet in an IPv6 VRF.
+	SRv6FunctionEndDT6 SRv6Function = "End.DT6"
+
+	// SRv6FunctionEndDT46 decapsulates and looks up the packet in an IPv4 or
+	// IPv6 VRF based on the inner packet's address family.
+	SRv6FunctionEndDT46 SRv6Function = "End.DT46"
+)
+
 // RouterRole defines the functional role of a BGPRouter within the network.
 //
 // +kubebuilder:validation:Enum=fabric;tenant;transit

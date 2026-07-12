@@ -139,6 +139,19 @@ type BGPAdvertisementSpec struct {
 	// +optional
 	// +kubebuilder:validation:Minimum=0
 	LocalPreference *int32 `json:"localPreference,omitempty"`
+
+	// VRFID is the 16-bit PoP-local VRF identifier this advertisement's SRv6
+	// SID resolves into, per RFC 9800 uSID Argument addressing. Required when
+	// Function is set.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	VRFID *int32 `json:"vrfID,omitempty"`
+
+	// Function is the RFC 8986 SRv6 endpoint behavior applied when this
+	// advertisement originates a compressed uSID. Required when VRFID is set.
+	// +optional
+	Function *SRv6Function `json:"function,omitempty"`
 }
 
 // BGPAdvertisementStatus defines the observed state of BGPAdvertisement.

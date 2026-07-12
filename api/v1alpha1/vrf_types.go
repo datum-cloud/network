@@ -10,7 +10,7 @@ import (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Namespaced,shortName=bgpvrf
-// +kubebuilder:printcolumn:name="RD",type="string",JSONPath=".spec.routeDistinguisher"
+// +kubebuilder:printcolumn:name="VRF-ID",type="integer",JSONPath=".spec.vrfID"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 type BGPVRFInstance struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -21,17 +21,18 @@ type BGPVRFInstance struct {
 }
 
 // BGPVRFInstanceSpec defines the desired VRF configuration.
-//
-// +kubebuilder:validation:XValidation:rule="self.routeDistinguisher.matches('^([0-9]{1,9}[.][0-9]{1,9}[.][0-9]{1,9}[.][0-9]{1,9}|[0-9]{1,9}):[0-9]{1,9}$')",message="routeDistinguisher must be in ASN:NN or IP:NN format"
 type BGPVRFInstanceSpec struct {
 	RouterTarget `json:",inline"`
 
-	// RouteDistinguisher uniquely identifies this VRF in the BGP control plane.
-	// Format: "ASN:NN" (e.g. "65000:100") or "IP:NN" (e.g. "192.0.2.1:100").
+	// VRFID is the 16-bit PoP-local VRF identifier used for RFC 9800 uSID
+	// Argument addressing and to derive the RFC 4364 Type 1 Route
+	// Distinguisher ("routerID:vrfID"). Unique per (VPC, PoP). Value 0 is
+	// reserved.
 	//
-	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:MaxLength=21
-	RouteDistinguisher string `json:"routeDistinguisher"`
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	VRFID int32 `json:"vrfID"`
 
 	// ImportRouteTargets is the list of BGP extended community route targets
 	// used to import routes into this VRF.

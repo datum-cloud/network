@@ -278,3 +278,64 @@ func TestBGPRouterSRv6LocatorOmitEmpty(t *testing.T) {
 		t.Error("expected \"srv6Locator\" key to be absent when empty")
 	}
 }
+
+// TestBGPRouterJSONRoundTripNodeID verifies that NodeID survives JSON
+// marshal/unmarshal.
+func TestBGPRouterJSONRoundTripNodeID(t *testing.T) {
+	orig := newTestRouter(RouterRoleFabric)
+	orig.Spec.NodeID = 42
+
+	data, err := json.Marshal(orig)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var got BGPRouter
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if got.Spec.NodeID != orig.Spec.NodeID {
+		t.Errorf("NodeID: got %d, want %d", got.Spec.NodeID, orig.Spec.NodeID)
+	}
+}
+
+// TestBGPRouterNodeIDFieldName verifies the JSON key is "nodeID".
+func TestBGPRouterNodeIDFieldName(t *testing.T) {
+	orig := newTestRouter(RouterRoleFabric)
+	orig.Spec.NodeID = 42
+
+	data, err := json.Marshal(orig.Spec)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if raw, ok := m["nodeID"]; !ok || raw != float64(42) {
+		t.Errorf("unexpected nodeID value: %v", raw)
+	}
+}
+
+// TestBGPRouterNodeIDOmitEmpty verifies that a router without a NodeID omits
+// the "nodeID" key from JSON output.
+func TestBGPRouterNodeIDOmitEmpty(t *testing.T) {
+	orig := newTestRouter(RouterRoleFabric)
+
+	data, err := json.Marshal(orig.Spec)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if _, ok := m["nodeID"]; ok {
+		t.Error("expected \"nodeID\" key to be absent when empty")
+	}
+}

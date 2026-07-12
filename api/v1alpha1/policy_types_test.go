@@ -221,7 +221,6 @@ func TestPolicySetActionsFieldNamesJSON(t *testing.T) {
 	self := true
 	metric := int32(100)
 	color := int32(42)
-	ep := "End.DT6"
 	origin := BGPOriginIGP
 	prepend := uint32(2)
 	asn := int64(65000)
@@ -239,9 +238,8 @@ func TestPolicySetActionsFieldNamesJSON(t *testing.T) {
 			Add:    []string{"65000:100"},
 			Remove: []string{"65000:200"},
 		},
-		Metric:               &metric,
-		Color:                &color,
-		Srv6EndpointBehavior: &ep,
+		Metric: &metric,
+		Color:  &color,
 	}
 
 	data, err := json.Marshal(set)
@@ -256,7 +254,7 @@ func TestPolicySetActionsFieldNamesJSON(t *testing.T) {
 
 	expectedKeys := []string{
 		"origin", "asPath", "nextHop", "extCommunities",
-		"metric", "color", "srv6EndpointBehavior",
+		"metric", "color",
 	}
 	for _, key := range expectedKeys {
 		if _, ok := m[key]; !ok {
@@ -320,7 +318,6 @@ func TestPolicySetActionsDeepCopy(t *testing.T) {
 	self := true
 	metric := int32(100)
 	color := int32(42)
-	ep := "End.DT6"
 	origin := BGPOriginIGP
 	prepend := uint32(2)
 	asn := int64(65000)
@@ -338,9 +335,8 @@ func TestPolicySetActionsDeepCopy(t *testing.T) {
 			Add:    []string{"65000:100"},
 			Remove: []string{"65000:200"},
 		},
-		Metric:               &metric,
-		Color:                &color,
-		Srv6EndpointBehavior: &ep,
+		Metric: &metric,
+		Color:  &color,
 	}
 
 	dup := orig.DeepCopy()
@@ -348,8 +344,6 @@ func TestPolicySetActionsDeepCopy(t *testing.T) {
 	// Mutate duplicate and verify original unchanged.
 	*dup.Metric = 999
 	*dup.Color = 999
-	newEP := "End.X"
-	dup.Srv6EndpointBehavior = &newEP
 	dup.ExtCommunities.Add[0] = "99999:99999"
 
 	if *orig.Metric != 100 {
@@ -357,9 +351,6 @@ func TestPolicySetActionsDeepCopy(t *testing.T) {
 	}
 	if *orig.Color != 42 {
 		t.Errorf("Color mutated: got %d", *orig.Color)
-	}
-	if *orig.Srv6EndpointBehavior != "End.DT6" {
-		t.Errorf("Srv6EndpointBehavior mutated: got %q", *orig.Srv6EndpointBehavior)
 	}
 	if orig.ExtCommunities.Add[0] != "65000:100" {
 		t.Errorf("ExtCommunities.Add[0] mutated: got %q", orig.ExtCommunities.Add[0])
@@ -427,7 +418,6 @@ func TestPolicySetActionsJSONRoundTrip(t *testing.T) {
 	addr := "2001:db8::1"
 	metric := int32(200)
 	color := int32(10)
-	ep := "End.B6"
 	origin := BGPOriginEGP
 	prepend := uint32(3)
 	asn := int64(65000)
@@ -446,9 +436,8 @@ func TestPolicySetActionsJSONRoundTrip(t *testing.T) {
 			Add:    []string{"65000:100", "65000:200"},
 			Remove: []string{"65000:999"},
 		},
-		Metric:               &metric,
-		Color:                &color,
-		Srv6EndpointBehavior: &ep,
+		Metric: &metric,
+		Color:  &color,
 	}
 
 	data, err := json.Marshal(orig)
@@ -475,9 +464,6 @@ func TestPolicySetActionsJSONRoundTrip(t *testing.T) {
 	}
 	if *got.Color != color {
 		t.Errorf("Color: got %d, want %d", *got.Color, color)
-	}
-	if *got.Srv6EndpointBehavior != ep {
-		t.Errorf("Srv6EndpointBehavior: got %q, want %q", *got.Srv6EndpointBehavior, ep)
 	}
 	if len(got.ExtCommunities.Add) != 2 {
 		t.Errorf("ExtCommunities.Add count: got %d, want 2", len(got.ExtCommunities.Add))

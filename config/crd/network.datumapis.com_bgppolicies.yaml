@@ -456,12 +456,6 @@ spec:
                           - egp
                           - incomplete
                           type: string
-                        srv6EndpointBehavior:
-                          description: |-
-                            Srv6EndpointBehavior sets the SRv6 endpoint behavior on a route.
-                            Common values: End, End.X, End.DT6, End.B6, End.M.
-                          maxLength: 64
-                          type: string
                       type: object
                   required:
                   - action
