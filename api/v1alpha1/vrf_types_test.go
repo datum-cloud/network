@@ -18,7 +18,7 @@ func newTestVRF() *BGPVRFInstance {
 			RouterTarget: RouterTarget{
 				RouterRef: &RouterRef{Name: "overlay-router"},
 			},
-			RouteDistinguisher: "65000:100",
+			VRFID:              100,
 			ImportRouteTargets: []RouteTarget{{Value: "65000:100"}},
 			ExportRouteTargets: []RouteTarget{{Value: "65000:100"}},
 		},
@@ -32,12 +32,12 @@ func TestBGPVRFInstanceDeepCopy(t *testing.T) {
 	dup := orig.DeepCopy()
 
 	// Mutate dup — original must be unaffected.
-	dup.Spec.RouteDistinguisher = "65001:200"
+	dup.Spec.VRFID = 200
 	dup.Spec.ImportRouteTargets[0].Value = "65001:200"
 	dup.Spec.RouterRef.Name = "other-router"
 
-	if orig.Spec.RouteDistinguisher != "65000:100" {
-		t.Errorf("RouteDistinguisher mutated: got %q", orig.Spec.RouteDistinguisher)
+	if orig.Spec.VRFID != 100 {
+		t.Errorf("VRFID mutated: got %d", orig.Spec.VRFID)
 	}
 	if orig.Spec.ImportRouteTargets[0].Value != "65000:100" {
 		t.Errorf("ImportRouteTargets[0] mutated: got %q", orig.Spec.ImportRouteTargets[0].Value)
@@ -72,8 +72,8 @@ func TestBGPVRFInstanceJSONRoundTrip(t *testing.T) {
 		t.Fatalf("Unmarshal: %v", err)
 	}
 
-	if got.Spec.RouteDistinguisher != orig.Spec.RouteDistinguisher {
-		t.Errorf("RD: got %q, want %q", got.Spec.RouteDistinguisher, orig.Spec.RouteDistinguisher)
+	if got.Spec.VRFID != orig.Spec.VRFID {
+		t.Errorf("VRFID: got %d, want %d", got.Spec.VRFID, orig.Spec.VRFID)
 	}
 	if got.Spec.RouterRef.Name != orig.Spec.RouterRef.Name {
 		t.Errorf("RouterRef: got %q, want %q", got.Spec.RouterRef.Name, orig.Spec.RouterRef.Name)
@@ -96,10 +96,29 @@ func TestBGPVRFInstanceListDeepCopy(t *testing.T) {
 		Items: []BGPVRFInstance{*newTestVRF()},
 	}
 	copied := list.DeepCopy()
-	copied.Items[0].Spec.RouteDistinguisher = "99:99"
+	copied.Items[0].Spec.VRFID = 999
 
-	if list.Items[0].Spec.RouteDistinguisher != "65000:100" {
+	if list.Items[0].Spec.VRFID != 100 {
 		t.Errorf("original list item mutated via copy")
+	}
+}
+
+// TestBGPVRFInstanceVRFIDFieldName verifies the JSON key is "vrfID".
+func TestBGPVRFInstanceVRFIDFieldName(t *testing.T) {
+	orig := newTestVRF()
+
+	data, err := json.Marshal(orig.Spec)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if raw, ok := m["vrfID"]; !ok || raw != float64(100) {
+		t.Errorf("unexpected vrfID value: %v", raw)
 	}
 }
 

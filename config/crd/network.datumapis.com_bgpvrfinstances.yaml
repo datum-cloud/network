@@ -17,9 +17,9 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.routeDistinguisher
-      name: RD
-      type: string
+    - jsonPath: .spec.vrfID
+      name: VRF-ID
+      type: integer
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -98,13 +98,6 @@ spec:
                 maxItems: 32
                 minItems: 1
                 type: array
-              routeDistinguisher:
-                description: |-
-                  RouteDistinguisher uniquely identifies this VRF in the BGP control plane.
-                  Format: "ASN:NN" (e.g. "65000:100") or "IP:NN" (e.g. "192.0.2.1:100").
-                maxLength: 21
-                minLength: 1
-                type: string
               routerRef:
                 description: |-
                   RouterRef targets a single BGPRouter by name.
@@ -160,14 +153,22 @@ spec:
                       match.
                     type: object
                 type: object
+              vrfID:
+                description: |-
+                  VRFID is the 16-bit PoP-local VRF identifier used for RFC 9800 uSID
+                  Argument addressing and to derive the RFC 4364 Type 1 Route
+                  Distinguisher ("routerID:vrfID"). Unique per (VPC, PoP). Value 0 is
+                  reserved.
+                format: int32
+                maximum: 65535
+                minimum: 1
+                type: integer
             required:
             - exportRouteTargets
             - importRouteTargets
-            - routeDistinguisher
+            - vrfID
             type: object
             x-kubernetes-validations:
-            - message: routeDistinguisher must be in ASN:NN or IP:NN format
-              rule: self.routeDistinguisher.matches('^([0-9]{1,9}[.][0-9]{1,9}[.][0-9]{1,9}[.][0-9]{1,9}|[0-9]{1,9}):[0-9]{1,9}$')
             - message: Exactly one of routerRef or routerSelector must be set
               rule: has(self.routerRef) != has(self.routerSelector)
           status:

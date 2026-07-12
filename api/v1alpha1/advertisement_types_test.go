@@ -257,6 +257,113 @@ func TestBGPAdvertisementListDeepCopy(t *testing.T) {
 	}
 }
 
+// TestBGPAdvertisementSRv6JSONRoundTrip verifies VRFID and Function serialise
+// and deserialise correctly.
+func TestBGPAdvertisementSRv6JSONRoundTrip(t *testing.T) {
+	orig := newTestAdvertisement()
+	orig.Spec.VRFID = ptr(int32(100))
+	orig.Spec.Function = ptr(SRv6FunctionEndDT6)
+
+	data, err := json.Marshal(orig)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var got BGPAdvertisement
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if got.Spec.VRFID == nil || *got.Spec.VRFID != 100 {
+		t.Errorf("VRFID: got %v, want 100", got.Spec.VRFID)
+	}
+	if got.Spec.Function == nil || *got.Spec.Function != SRv6FunctionEndDT6 {
+		t.Errorf("Function: got %v, want %q", got.Spec.Function, SRv6FunctionEndDT6)
+	}
+}
+
+// TestBGPAdvertisementSRv6FieldNames verifies the JSON keys are "vrfID" and "function".
+func TestBGPAdvertisementSRv6FieldNames(t *testing.T) {
+	orig := newTestAdvertisement()
+	orig.Spec.VRFID = ptr(int32(100))
+	orig.Spec.Function = ptr(SRv6FunctionEndDT46)
+
+	data, err := json.Marshal(orig.Spec)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if raw, ok := m["vrfID"]; !ok || raw != float64(100) {
+		t.Errorf("unexpected vrfID value: %v", raw)
+	}
+	if raw, ok := m["function"]; !ok || raw != "End.DT46" {
+		t.Errorf("unexpected function value: %v", raw)
+	}
+}
+
+// TestBGPAdvertisementSRv6OmitEmpty verifies that VRFID and Function are
+// omitted from JSON output when unset.
+func TestBGPAdvertisementSRv6OmitEmpty(t *testing.T) {
+	orig := newTestAdvertisement()
+
+	data, err := json.Marshal(orig.Spec)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if _, ok := m["vrfID"]; ok {
+		t.Error("expected \"vrfID\" key to be absent when empty")
+	}
+	if _, ok := m["function"]; ok {
+		t.Error("expected \"function\" key to be absent when empty")
+	}
+}
+
+// TestBGPAdvertisementSRv6DeepCopy verifies DeepCopy isolates VRFID and Function.
+func TestBGPAdvertisementSRv6DeepCopy(t *testing.T) {
+	orig := newTestAdvertisement()
+	orig.Spec.VRFID = ptr(int32(100))
+	orig.Spec.Function = ptr(SRv6FunctionEndDT4)
+
+	dup := orig.DeepCopy()
+	*dup.Spec.VRFID = 999
+	*dup.Spec.Function = SRv6FunctionEndDT6
+
+	if *orig.Spec.VRFID != 100 {
+		t.Errorf("VRFID mutated: got %d", *orig.Spec.VRFID)
+	}
+	if *orig.Spec.Function != SRv6FunctionEndDT4 {
+		t.Errorf("Function mutated: got %q", *orig.Spec.Function)
+	}
+}
+
+// TestSRv6FunctionConstants verifies enum values match expected strings.
+func TestSRv6FunctionConstants(t *testing.T) {
+	cases := []struct {
+		fn   SRv6Function
+		want string
+	}{
+		{SRv6FunctionEndDT4, "End.DT4"},
+		{SRv6FunctionEndDT6, "End.DT6"},
+		{SRv6FunctionEndDT46, "End.DT46"},
+	}
+	for _, tt := range cases {
+		if string(tt.fn) != tt.want {
+			t.Errorf("SRv6Function %q: got %q, want %q", tt.fn, string(tt.fn), tt.want)
+		}
+	}
+}
+
 // TestRedistributeSourceConstants verifies enum values match expected strings.
 func TestRedistributeSourceConstants(t *testing.T) {
 	cases := []struct {

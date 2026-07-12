@@ -258,12 +258,6 @@ type PolicySetActions struct {
 	// +optional
 	// +kubebuilder:validation:Minimum=0
 	Color *int32 `json:"color,omitempty"`
-
-	// Srv6EndpointBehavior sets the SRv6 endpoint behavior on a route.
-	// Common values: End, End.X, End.DT6, End.B6, End.M.
-	// +optional
-	// +kubebuilder:validation:MaxLength=64
-	Srv6EndpointBehavior *string `json:"srv6EndpointBehavior,omitempty"`
 }
 
 // BGPOrigin is the BGP origin attribute per RFC 4271.

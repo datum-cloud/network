@@ -21,7 +21,7 @@ spec:
               spec:
                 routerRef:
                   name: bgp-e2e-worker
-                routeDistinguisher: "65000:100"
+                vrfID: 100
                 importRouteTargets:
                   - value: "65000:100"
                 exportRouteTargets:
@@ -42,16 +42,16 @@ spec:
         - script:
             content: |
               set -e
-              RD=$(kubectl get bgpvrf e2e-valid-vrf -n "$NAMESPACE" \
-                -o jsonpath='{.spec.routeDistinguisher}')
+              VRFID=$(kubectl get bgpvrf e2e-valid-vrf -n "$NAMESPACE" \
+                -o jsonpath='{.spec.vrfID}')
               IRT=$(kubectl get bgpvrf e2e-valid-vrf -n "$NAMESPACE" \
                 -o jsonpath='{.spec.importRouteTargets[0].value}')
               ERT=$(kubectl get bgpvrf e2e-valid-vrf -n "$NAMESPACE" \
                 -o jsonpath='{.spec.exportRouteTargets[0].value}')
               ROUTER=$(kubectl get bgpvrf e2e-valid-vrf -n "$NAMESPACE" \
                 -o jsonpath='{.spec.routerRef.name}')
-              if [ "$RD" != "65000:100" ]; then
-                echo "ERROR: routeDistinguisher = $RD, want 65000:100"
+              if [ "$VRFID" != "100" ]; then
+                echo "ERROR: vrfID = $VRFID, want 100"
                 exit 1
               fi
               if [ "$IRT" != "65000:100" ]; then
@@ -66,9 +66,9 @@ spec:
                 echo "ERROR: routerRef.name = $ROUTER, want bgp-e2e-worker"
                 exit 1
               fi
-              echo "OK: all fields stored correctly (RD=$RD IRT=$IRT ERT=$ERT routerRef.name=$ROUTER)"
+              echo "OK: all fields stored correctly (vrfID=$VRFID IRT=$IRT ERT=$ERT routerRef.name=$ROUTER)"
 
-    - name: vrf-ip-format-rd
+    - name: vrf-id-boundary-values
       try:
         - script:
             content: |
@@ -77,18 +77,18 @@ spec:
               apiVersion: network.datumapis.com/v1alpha1
               kind: BGPVRFInstance
               metadata:
-                name: e2e-vrf-ip-rd
+                name: e2e-vrf-id-max
               spec:
                 routerRef:
                   name: bgp-e2e-worker
-                routeDistinguisher: "192.0.2.1:100"
+                vrfID: 65535
                 importRouteTargets:
-                  - value: "192.0.2.1:100"
+                  - value: "65000:100"
                 exportRouteTargets:
-                  - value: "192.0.2.1:100"
+                  - value: "65000:100"
               EOF
-              kubectl delete bgpvrf e2e-vrf-ip-rd
-              echo "OK: IP:NN format RD accepted"
+              kubectl delete bgpvrf e2e-vrf-id-max
+              echo "OK: maximum vrfID (65535) accepted"
 
     - name: vrf-multiple-route-targets
       try:
@@ -103,7 +103,7 @@ spec:
               spec:
                 routerRef:
                   name: bgp-e2e-worker
-                routeDistinguisher: "65000:200"
+                vrfID: 200
                 importRouteTargets:
                   - value: "65000:200"
                   - value: "65001:200"
@@ -122,7 +122,7 @@ spec:
               fi
               echo "OK: multiple route targets stored correctly (import=$IRT_COUNT export=$ERT_COUNT)"
 
-    - name: reject-invalid-rd-format
+    - name: reject-reserved-vrfid-zero
       try:
         - script:
             content: |
@@ -131,11 +131,11 @@ spec:
               apiVersion: network.datumapis.com/v1alpha1
               kind: BGPVRFInstance
               metadata:
-                name: e2e-vrf-bad-rd
+                name: e2e-vrf-id-zero
               spec:
                 routerRef:
                   name: bgp-e2e-worker
-                routeDistinguisher: "not-valid"
+                vrfID: 0
                 importRouteTargets:
                   - value: "65000:100"
                 exportRouteTargets:
@@ -145,11 +145,41 @@ spec:
               EXIT=$?
               set -e
               if [ "$EXIT" -eq 0 ]; then
-                echo "ERROR: expected rejection of invalid routeDistinguisher but resource was accepted"
-                kubectl delete bgpvrf e2e-vrf-bad-rd 2>/dev/null || true
+                echo "ERROR: expected rejection of reserved vrfID 0 but resource was accepted"
+                kubectl delete bgpvrf e2e-vrf-id-zero 2>/dev/null || true
                 exit 1
               fi
-              echo "OK: invalid routeDistinguisher correctly rejected"
+              echo "OK: reserved vrfID 0 correctly rejected"
+              echo "Server response: $OUTPUT"
+
+    - name: reject-vrfid-above-max
+      try:
+        - script:
+            content: |
+              set +e
+              OUTPUT=$(kubectl apply -f - 2>&1 <<'EOF'
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: BGPVRFInstance
+              metadata:
+                name: e2e-vrf-id-toobig
+              spec:
+                routerRef:
+                  name: bgp-e2e-worker
+                vrfID: 65536
+                importRouteTargets:
+                  - value: "65000:100"
+                exportRouteTargets:
+                  - value: "65000:100"
+              EOF
+              )
+              EXIT=$?
+              set -e
+              if [ "$EXIT" -eq 0 ]; then
+                echo "ERROR: expected rejection of vrfID above 65535 but resource was accepted"
+                kubectl delete bgpvrf e2e-vrf-id-toobig 2>/dev/null || true
+                exit 1
+              fi
+              echo "OK: vrfID above 65535 correctly rejected"
               echo "Server response: $OUTPUT"
 
     - name: reject-invalid-rt-format
@@ -165,7 +195,7 @@ spec:
               spec:
                 routerRef:
                   name: bgp-e2e-worker
-                routeDistinguisher: "65000:100"
+                vrfID: 100
                 importRouteTargets:
                   - value: "bad-rt"
                 exportRouteTargets:
@@ -195,7 +225,7 @@ spec:
               spec:
                 routerRef:
                   name: bgp-e2e-worker
-                routeDistinguisher: "65000:100"
+                vrfID: 100
                 importRouteTargets: []
                 exportRouteTargets:
                   - value: "65000:100"
@@ -224,7 +254,7 @@ spec:
               spec:
                 routerRef:
                   name: bgp-e2e-worker
-                routeDistinguisher: "65000:100"
+                vrfID: 100
                 importRouteTargets:
                   - value: "65000:100"
                 exportRouteTargets: []
@@ -251,7 +281,7 @@ spec:
               metadata:
                 name: e2e-vrf-no-router
               spec:
-                routeDistinguisher: "65000:100"
+                vrfID: 100
                 importRouteTargets:
                   - value: "65000:100"
                 exportRouteTargets:
@@ -268,7 +298,7 @@ spec:
               echo "OK: missing routerRef correctly rejected"
               echo "Server response: $OUTPUT"
 
-    - name: reject-missing-rd
+    - name: reject-missing-vrfid
       try:
         - script:
             content: |
@@ -277,7 +307,7 @@ spec:
               apiVersion: network.datumapis.com/v1alpha1
               kind: BGPVRFInstance
               metadata:
-                name: e2e-vrf-no-rd
+                name: e2e-vrf-no-vrfid
               spec:
                 routerRef:
                   name: bgp-e2e-worker
@@ -290,11 +320,11 @@ spec:
               EXIT=$?
               set -e
               if [ "$EXIT" -eq 0 ]; then
-                echo "ERROR: expected rejection of missing routeDistinguisher but resource was accepted"
-                kubectl delete bgpvrf e2e-vrf-no-rd 2>/dev/null || true
+                echo "ERROR: expected rejection of missing vrfID but resource was accepted"
+                kubectl delete bgpvrf e2e-vrf-no-vrfid 2>/dev/null || true
                 exit 1
               fi
-              echo "OK: missing routeDistinguisher correctly rejected"
+              echo "OK: missing vrfID correctly rejected"
               echo "Server response: $OUTPUT"
 
       finally:
