@@ -10,6 +10,7 @@ Package v1alpha1 contains API Schema definitions for the network.datumapis.com/v
 
 ### Resource Types
 - [BGPAdvertisement](#bgpadvertisement)
+- [BGPCommunitySet](#bgpcommunityset)
 - [BGPPeer](#bgppeer)
 - [BGPPolicy](#bgppolicy)
 - [BGPRouter](#bgprouter)
@@ -230,6 +231,84 @@ _Appears in:_
 | `observedGeneration` _integer_ | ObservedGeneration is the .metadata.generation this status was computed from. |  |  |
 | `advertisedPrefixes` _integer_ | AdvertisedPrefixes is the count of prefixes currently being originated. |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource. |  |  |
+
+
+#### BGPCommunitySet
+
+
+
+BGPCommunitySet defines a named list of BGP community values used by BGPPolicy
+terms to match or set communities on routes. It is referenced by name from
+BGPPolicyMatch.communitySetRef.
+
+A single BGPCommunitySet holds either standard or large communities — the type
+is declared upfront and all entries are validated against it via CEL.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `network.datumapis.com/v1alpha1` | | |
+| `kind` _string_ | `BGPCommunitySet` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[BGPCommunitySetSpec](#bgpcommunitysetspec)_ |  |  |  |
+| `status` _[BGPCommunitySetStatus](#bgpcommunitysetstatus)_ |  |  |  |
+
+
+#### BGPCommunitySetSpec
+
+
+
+BGPCommunitySetSpec defines the desired state of BGPCommunitySet.
+
+
+
+_Appears in:_
+- [BGPCommunitySet](#bgpcommunityset)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `type` _[BGPCommunitySetType](#bgpcommunitysettype)_ | Type is the community format for all entries in this set. |  | Enum: [standard large] <br />Required: \{\} <br /> |
+| `entries` _string array_ | Entries is the list of community values.<br />Standard: ASN:NN, IP:NN, or well-known names (graceful-shutdown, no-export,<br />no-advertise, blackhole).<br />Large: ASN:NN:NN. |  | MaxItems: 256 <br />MinItems: 1 <br /> |
+
+
+#### BGPCommunitySetStatus
+
+
+
+BGPCommunitySetStatus defines the observed state of BGPCommunitySet.
+
+
+
+_Appears in:_
+- [BGPCommunitySet](#bgpcommunityset)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `observedGeneration` _integer_ | ObservedGeneration is the .metadata.generation this status was computed from. |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource. |  |  |
+
+
+#### BGPCommunitySetType
+
+_Underlying type:_ _string_
+
+BGPCommunitySetType distinguishes standard from large BGP communities.
+
+_Validation:_
+- Enum: [standard large]
+
+_Appears in:_
+- [BGPCommunitySetSpec](#bgpcommunitysetspec)
+
+| Field | Description |
+| --- | --- |
+| `standard` | BGPCommunitySetTypeStandard covers ASN:NN, IP:NN, and well-known names<br />(graceful-shutdown, no-export, no-advertise, blackhole).<br /> |
+| `large` | BGPCommunitySetTypeLarge covers ASN:NN:NN large communities.<br /> |
 
 
 #### BGPMaximumPrefix
