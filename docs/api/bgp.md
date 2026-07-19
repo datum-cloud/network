@@ -10,6 +10,7 @@ Package v1alpha1 contains API Schema definitions for the network.datumapis.com/v
 
 ### Resource Types
 - [BGPAdvertisement](#bgpadvertisement)
+- [BGPCommunitySet](#bgpcommunityset)
 - [BGPPeer](#bgppeer)
 - [BGPPolicy](#bgppolicy)
 - [BGPRouter](#bgprouter)
@@ -155,7 +156,7 @@ AsPathSet defines AS path manipulation operations.
 
 
 _Appears in:_
-- [PolicySetActions](#policysetactions)
+- [BGPPolicySetActions](#bgppolicysetactions)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -232,6 +233,103 @@ _Appears in:_
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource. |  |  |
 
 
+#### BGPCommunitySet
+
+
+
+BGPCommunitySet defines a named list of BGP community values used by BGPPolicy
+terms to match or set communities on routes. It is referenced by name from
+BGPPolicyMatch.communitySetRef.
+
+A single BGPCommunitySet holds either standard or large communities — the type
+is declared upfront and all entries are validated against it via CEL.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `network.datumapis.com/v1alpha1` | | |
+| `kind` _string_ | `BGPCommunitySet` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[BGPCommunitySetSpec](#bgpcommunitysetspec)_ |  |  |  |
+| `status` _[BGPCommunitySetStatus](#bgpcommunitysetstatus)_ |  |  |  |
+
+
+#### BGPCommunitySetSpec
+
+
+
+BGPCommunitySetSpec defines the desired state of BGPCommunitySet.
+
+
+
+_Appears in:_
+- [BGPCommunitySet](#bgpcommunityset)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `type` _[BGPCommunitySetType](#bgpcommunitysettype)_ | Type is the community format for all entries in this set. |  | Enum: [standard large] <br />Required: \{\} <br /> |
+| `entries` _string array_ | Entries is the list of community values.<br />Standard: ASN:NN, IP:NN, or well-known names (graceful-shutdown, no-export,<br />no-advertise, blackhole).<br />Large: ASN:NN:NN. |  | MaxItems: 256 <br />MinItems: 1 <br /> |
+
+
+#### BGPCommunitySetStatus
+
+
+
+BGPCommunitySetStatus defines the observed state of BGPCommunitySet.
+
+
+
+_Appears in:_
+- [BGPCommunitySet](#bgpcommunityset)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `observedGeneration` _integer_ | ObservedGeneration is the .metadata.generation this status was computed from. |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource. |  |  |
+
+
+#### BGPCommunitySetType
+
+_Underlying type:_ _string_
+
+BGPCommunitySetType distinguishes standard from large BGP communities.
+
+_Validation:_
+- Enum: [standard large]
+
+_Appears in:_
+- [BGPCommunitySetSpec](#bgpcommunitysetspec)
+
+| Field | Description |
+| --- | --- |
+| `standard` | BGPCommunitySetTypeStandard covers ASN:NN, IP:NN, and well-known names<br />(graceful-shutdown, no-export, no-advertise, blackhole).<br /> |
+| `large` | BGPCommunitySetTypeLarge covers ASN:NN:NN large communities.<br /> |
+
+
+#### BGPMaximumPrefix
+
+
+
+BGPMaximumPrefix defines the maximum number of routes accepted from a peer
+before triggering a shutdown action.
+
+
+
+_Appears in:_
+- [BGPPeerSpec](#bgppeerspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `limit` _integer_ | Limit is the maximum number of routes accepted from this peer. |  | Minimum: 1 <br /> |
+| `thresholdPercent` _integer_ | ThresholdPercent is the percentage threshold at which a warning is<br />logged (e.g., 75 means warn at 75% of Limit). Range: 1-100. |  | Maximum: 100 <br />Minimum: 1 <br /> |
+| `shutdownAction` _[MaxPrefixShutdownAction](#maxprefixshutdownaction)_ | ShutdownAction is the action taken when the Limit is exceeded. |  | Enum: [warning-only restart shutdown] <br />Required: \{\} <br /> |
+
+
 #### BGPOrigin
 
 _Underlying type:_ _string_
@@ -242,7 +340,7 @@ _Validation:_
 - Enum: [igp egp incomplete]
 
 _Appears in:_
-- [PolicySetActions](#policysetactions)
+- [BGPPolicySetActions](#bgppolicysetactions)
 
 | Field | Description |
 | --- | --- |
@@ -367,6 +465,10 @@ _Appears in:_
 | `routeMapOut` _string_ | RouteMapOut is the name of a BGPPolicy term set applied to routes<br />advertised to this peer (export direction). The name must match<br />a BGPPolicy resource in the same namespace. |  |  |
 | `nextHopSelf` _boolean_ | NextHopSelf controls next-hop behavior for iBGP sessions.<br />When true, the local router's IP is used as next-hop for all<br />advertised routes. Common in EVPN iBGP peering. |  |  |
 | `removePrivateAS` _integer_ | RemovePrivateAS strips private AS numbers (64512-65535, 4200000000-4294967294)<br />from the AS path on eBGP export. If set to a non-zero value, private ASNs<br />are replaced with the specified value before export. |  | Minimum: 0 <br /> |
+| `updateSource` _string_ | UpdateSource is the local IP address or interface name used as the<br />source for the BGP TCP session. Useful when the local router has<br />multiple addresses or when pinning to a specific loopback. |  |  |
+| `sendCommunity` _[SendCommunityType](#sendcommunitytype)_ | SendCommunity controls which BGP community attributes are propagated<br />to this peer. When unset, communities are not sent. |  | Enum: [standard extended large both] <br /> |
+| `allowASIn` _integer_ | AllowASIn allows routes that contain the local ASN in the AS_PATH<br />to be accepted from this peer. The value specifies the maximum number<br />of times the local ASN may appear. Range: 1-10. |  | Maximum: 10 <br />Minimum: 1 <br /> |
+| `maximumPrefix` _[BGPMaximumPrefix](#bgpmaximumprefix)_ | MaximumPrefix defines the maximum number of routes accepted from this<br />peer before triggering a shutdown action. |  |  |
 | `defaultOriginRoute` _[OriginType](#origintype)_ | DefaultOriginRoute controls default route origination for this peer.<br />"igp" originates a default route with IGP origin.<br />"egp" originates a default route with EGP origin.<br />"incomplete" originates a default route with incomplete origin.<br />Empty or unset means no default route origination. |  | Enum: [igp egp incomplete] <br /> |
 | `authentication` _[BGPPeerAuthentication](#bgppeerauthentication)_ | Authentication configures peer authentication.<br />AuthSecretRef takes precedence when both are set. |  |  |
 
@@ -445,6 +547,7 @@ _Validation:_
 
 _Appears in:_
 - [BGPPolicyTerm](#bgppolicyterm)
+- [BGPPrefixListEntry](#bgpprefixlistentry)
 
 | Field | Description |
 | --- | --- |
@@ -494,6 +597,29 @@ _Appears in:_
 | `ipPrefix` _string_ | IPPrefix matches routes by exact IP prefix (CIDR notation). |  | MaxLength: 43 <br /> |
 | `localPreference` _integer_ | LocalPreference matches routes by BGP LOCAL_PREF value. |  | Minimum: 0 <br /> |
 | `med` _integer_ | MED matches routes by Multi-Exit Discriminator value. |  | Minimum: 0 <br /> |
+
+
+#### BGPPolicySetActions
+
+
+
+BGPPolicySetActions defines mutations applied when a term matches with action "permit".
+
+
+
+_Appears in:_
+- [BGPPolicyTerm](#bgppolicyterm)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `communities` _[CommunitySet](#communityset)_ | Communities defines community add/remove operations. |  |  |
+| `localPreference` _integer_ | LocalPreference sets the LOCAL_PREF attribute.<br />Only meaningful on import (iBGP) or export to iBGP peers. |  | Minimum: 0 <br /> |
+| `origin` _[BGPOrigin](#bgporigin)_ | Origin sets the BGP origin attribute. |  | Enum: [igp egp incomplete] <br /> |
+| `asPath` _[AsPathSet](#aspathset)_ | AsPath manipulates the AS path (prepend or replace). |  |  |
+| `nextHop` _[NextHopSet](#nexthopset)_ | NextHop overrides the next-hop attribute. |  |  |
+| `extCommunities` _[ExtendedCommunitySet](#extendedcommunityset)_ | ExtCommunities defines extended community add/remove operations.<br />Each entry must be in a valid extended community format (ASN:NN, IP:NN,<br />or type-specific like "rt:65000:100"). |  |  |
+| `metric` _integer_ | Metric sets the MED (Multi-Exit Discriminator) attribute. |  | Minimum: 0 <br /> |
+| `color` _integer_ | Color sets the SRv6 policy color for path selection. |  | Minimum: 0 <br /> |
 
 
 #### BGPPolicySpec
@@ -548,7 +674,32 @@ _Appears in:_
 | `sequence` _integer_ | Sequence is the evaluation order. Lower values are evaluated first.<br />Must be unique within the policy. |  | Maximum: 65535 <br />Minimum: 1 <br /> |
 | `match` _[BGPPolicyMatch](#bgppolicymatch)_ | Match defines the conditions under which this term fires. |  |  |
 | `action` _[BGPPolicyAction](#bgppolicyaction)_ | Action is the disposition when this term matches. |  | Enum: [permit deny] <br /> |
-| `set` _[PolicySetActions](#policysetactions)_ | Set defines mutations applied when action is "permit".<br />Must not be set when action is "deny". |  |  |
+| `set` _[BGPPolicySetActions](#bgppolicysetactions)_ | Set defines mutations applied when action is "permit".<br />Must not be set when action is "deny". |  |  |
+
+
+#### BGPPrefixListEntry
+
+
+
+BGPPrefixListEntry defines a single entry in a named BGP prefix-list.
+Entries are evaluated in ascending sequence order.
+
+
+
+_Appears in:_
+- [BGPPrefixListSpec](#bgpprefixlistspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `sequence` _integer_ | Sequence is the evaluation order for this entry. Entries with lower<br />sequence numbers are evaluated first. Must be unique within the list. |  | Maximum: 4.294967295e+09 <br />Minimum: 5 <br /> |
+| `action` _[BGPPolicyAction](#bgppolicyaction)_ | Action is the disposition when a route's prefix matches this entry. |  | Enum: [permit deny] <br />Required: \{\} <br /> |
+| `prefix` _string_ | Prefix is the IPv4 or IPv6 CIDR to match against. |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `ge` _integer_ | GE is the minimum prefix-length to match (greater-than-or-equal).<br />For example, "10.0.0.0/8 ge 16" matches 10.0.0.0/16 through 10.0.0.0/32.<br />When unset, the prefix-length of Prefix is the lower bound. |  | Maximum: 32 <br />Minimum: 0 <br /> |
+| `le` _integer_ | LE is the maximum prefix-length to match (less-than-or-equal).<br />For example, "10.0.0.0/8 le 24" matches 10.0.0.0/8 through 10.0.0.0/24.<br />When unset, the prefix-length of Prefix is the upper bound. |  | Maximum: 32 <br />Minimum: 0 <br /> |
+
+
+
+
 
 
 #### BGPRouter
@@ -734,7 +885,7 @@ CommunitySet defines community add and remove operations.
 
 
 _Appears in:_
-- [PolicySetActions](#policysetactions)
+- [BGPPolicySetActions](#bgppolicysetactions)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -772,7 +923,7 @@ ExtendedCommunitySet defines extended community add and remove operations.
 
 
 _Appears in:_
-- [PolicySetActions](#policysetactions)
+- [BGPPolicySetActions](#bgppolicysetactions)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -797,6 +948,26 @@ _Appears in:_
 | `name` _string_ | Name is the name of the Secret. |  | MinLength: 1 <br /> |
 
 
+#### MaxPrefixShutdownAction
+
+_Underlying type:_ _string_
+
+MaxPrefixShutdownAction defines the action taken when a peer exceeds its
+maximum-prefix limit.
+
+_Validation:_
+- Enum: [warning-only restart shutdown]
+
+_Appears in:_
+- [BGPMaximumPrefix](#bgpmaximumprefix)
+
+| Field | Description |
+| --- | --- |
+| `warning-only` | MaxPrefixShutdownActionWarningOnly logs a warning but keeps the session up.<br /> |
+| `restart` | MaxPrefixShutdownActionRestart resets the BGP session when the limit is exceeded.<br /> |
+| `shutdown` | MaxPrefixShutdownActionShutdown tears down the BGP session when the limit is exceeded.<br /> |
+
+
 #### NextHopSet
 
 
@@ -806,7 +977,7 @@ NextHopSet defines next-hop attribute overrides.
 
 
 _Appears in:_
-- [PolicySetActions](#policysetactions)
+- [BGPPolicySetActions](#bgppolicysetactions)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -831,29 +1002,6 @@ _Appears in:_
 | `igp` |  |
 | `egp` |  |
 | `incomplete` |  |
-
-
-#### PolicySetActions
-
-
-
-PolicySetActions defines mutations applied when a term matches with action "permit".
-
-
-
-_Appears in:_
-- [BGPPolicyTerm](#bgppolicyterm)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `communities` _[CommunitySet](#communityset)_ | Communities defines community add/remove operations. |  |  |
-| `localPreference` _integer_ | LocalPreference sets the LOCAL_PREF attribute.<br />Only meaningful on import (iBGP) or export to iBGP peers. |  | Minimum: 0 <br /> |
-| `origin` _[BGPOrigin](#bgporigin)_ | Origin sets the BGP origin attribute. |  | Enum: [igp egp incomplete] <br /> |
-| `asPath` _[AsPathSet](#aspathset)_ | AsPath manipulates the AS path (prepend or replace). |  |  |
-| `nextHop` _[NextHopSet](#nexthopset)_ | NextHop overrides the next-hop attribute. |  |  |
-| `extCommunities` _[ExtendedCommunitySet](#extendedcommunityset)_ | ExtCommunities defines extended community add/remove operations.<br />Each entry must be in a valid extended community format (ASN:NN, IP:NN,<br />or type-specific like "rt:65000:100"). |  |  |
-| `metric` _integer_ | Metric sets the MED (Multi-Exit Discriminator) attribute. |  | Minimum: 0 <br /> |
-| `color` _integer_ | Color sets the SRv6 policy color for path selection. |  | Minimum: 0 <br /> |
 
 
 #### Prefix
@@ -1057,6 +1205,27 @@ _Appears in:_
 | `End.DT4` | SRv6FunctionEndDT4 decapsulates and looks up the packet in an IPv4 VRF.<br /> |
 | `End.DT6` | SRv6FunctionEndDT6 decapsulates and looks up the packet in an IPv6 VRF.<br /> |
 | `End.DT46` | SRv6FunctionEndDT46 decapsulates and looks up the packet in an IPv4 or<br />IPv6 VRF based on the inner packet's address family.<br /> |
+
+
+#### SendCommunityType
+
+_Underlying type:_ _string_
+
+SendCommunityType controls which BGP community attributes are propagated
+to a peer.
+
+_Validation:_
+- Enum: [standard extended large both]
+
+_Appears in:_
+- [BGPPeerSpec](#bgppeerspec)
+
+| Field | Description |
+| --- | --- |
+| `standard` | SendCommunityTypeStandard sends only standard communities (ASN:NN).<br /> |
+| `extended` | SendCommunityTypeExtended sends only extended communities (Type:Length:Value).<br /> |
+| `large` | SendCommunityTypeLarge sends only large communities (ASN:NN:NN).<br /> |
+| `both` | SendCommunityTypeBoth sends both standard and extended communities.<br /> |
 
 
 #### TargetRef

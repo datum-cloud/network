@@ -100,6 +100,15 @@ spec:
                     rule: 'self.afi == ''l2vpn'' ? self.safi == ''evpn'' : true'
                 minItems: 1
                 type: array
+              allowASIn:
+                description: |-
+                  AllowASIn allows routes that contain the local ASN in the AS_PATH
+                  to be accepted from this peer. The value specifies the maximum number
+                  of times the local ASN may appear. Range: 1-10.
+                format: int32
+                maximum: 10
+                minimum: 1
+                type: integer
               authSecretRef:
                 description: |-
                   AuthSecretRef references a Secret in the same namespace containing the
@@ -222,6 +231,37 @@ spec:
                 x-kubernetes-validations:
                 - message: keepaliveTime must be 0 or <= 30s
                   rule: duration(self) == duration('0s') || duration(self) <= duration('30s')
+              maximumPrefix:
+                description: |-
+                  MaximumPrefix defines the maximum number of routes accepted from this
+                  peer before triggering a shutdown action.
+                properties:
+                  limit:
+                    description: Limit is the maximum number of routes accepted from
+                      this peer.
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  shutdownAction:
+                    description: ShutdownAction is the action taken when the Limit
+                      is exceeded.
+                    enum:
+                    - warning-only
+                    - restart
+                    - shutdown
+                    type: string
+                  thresholdPercent:
+                    description: |-
+                      ThresholdPercent is the percentage threshold at which a warning is
+                      logged (e.g., 75 means warn at 75% of Limit). Range: 1-100.
+                    format: int32
+                    maximum: 100
+                    minimum: 1
+                    type: integer
+                required:
+                - limit
+                - shutdownAction
+                type: object
               multiSession:
                 description: |-
                   MultiSession enables BFD over MP-BGP (RFC 8935). When true, each
@@ -322,6 +362,22 @@ spec:
                       match.
                     type: object
                 type: object
+              sendCommunity:
+                description: |-
+                  SendCommunity controls which BGP community attributes are propagated
+                  to this peer. When unset, communities are not sent.
+                enum:
+                - standard
+                - extended
+                - large
+                - both
+                type: string
+              updateSource:
+                description: |-
+                  UpdateSource is the local IP address or interface name used as the
+                  source for the BGP TCP session. Useful when the local router has
+                  multiple addresses or when pinning to a specific loopback.
+                type: string
             required:
             - address
             - addressFamilies
