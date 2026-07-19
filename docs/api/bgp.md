@@ -232,6 +232,25 @@ _Appears in:_
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource. |  |  |
 
 
+#### BGPMaximumPrefix
+
+
+
+BGPMaximumPrefix defines the maximum number of routes accepted from a peer
+before triggering a shutdown action.
+
+
+
+_Appears in:_
+- [BGPPeerSpec](#bgppeerspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `limit` _integer_ | Limit is the maximum number of routes accepted from this peer. |  | Minimum: 1 <br /> |
+| `thresholdPercent` _integer_ | ThresholdPercent is the percentage threshold at which a warning is<br />logged (e.g., 75 means warn at 75% of Limit). Range: 1-100. |  | Maximum: 100 <br />Minimum: 1 <br /> |
+| `shutdownAction` _[MaxPrefixShutdownAction](#maxprefixshutdownaction)_ | ShutdownAction is the action taken when the Limit is exceeded. |  | Enum: [warning-only restart shutdown] <br />Required: \{\} <br /> |
+
+
 #### BGPOrigin
 
 _Underlying type:_ _string_
@@ -367,6 +386,10 @@ _Appears in:_
 | `routeMapOut` _string_ | RouteMapOut is the name of a BGPPolicy term set applied to routes<br />advertised to this peer (export direction). The name must match<br />a BGPPolicy resource in the same namespace. |  |  |
 | `nextHopSelf` _boolean_ | NextHopSelf controls next-hop behavior for iBGP sessions.<br />When true, the local router's IP is used as next-hop for all<br />advertised routes. Common in EVPN iBGP peering. |  |  |
 | `removePrivateAS` _integer_ | RemovePrivateAS strips private AS numbers (64512-65535, 4200000000-4294967294)<br />from the AS path on eBGP export. If set to a non-zero value, private ASNs<br />are replaced with the specified value before export. |  | Minimum: 0 <br /> |
+| `updateSource` _string_ | UpdateSource is the local IP address or interface name used as the<br />source for the BGP TCP session. Useful when the local router has<br />multiple addresses or when pinning to a specific loopback. |  |  |
+| `sendCommunity` _[SendCommunityType](#sendcommunitytype)_ | SendCommunity controls which BGP community attributes are propagated<br />to this peer. When unset, communities are not sent. |  | Enum: [standard extended large both] <br /> |
+| `allowASIn` _integer_ | AllowASIn allows routes that contain the local ASN in the AS_PATH<br />to be accepted from this peer. The value specifies the maximum number<br />of times the local ASN may appear. Range: 1-10. |  | Maximum: 10 <br />Minimum: 1 <br /> |
+| `maximumPrefix` _[BGPMaximumPrefix](#bgpmaximumprefix)_ | MaximumPrefix defines the maximum number of routes accepted from this<br />peer before triggering a shutdown action. |  |  |
 | `defaultOriginRoute` _[OriginType](#origintype)_ | DefaultOriginRoute controls default route origination for this peer.<br />"igp" originates a default route with IGP origin.<br />"egp" originates a default route with EGP origin.<br />"incomplete" originates a default route with incomplete origin.<br />Empty or unset means no default route origination. |  | Enum: [igp egp incomplete] <br /> |
 | `authentication` _[BGPPeerAuthentication](#bgppeerauthentication)_ | Authentication configures peer authentication.<br />AuthSecretRef takes precedence when both are set. |  |  |
 
@@ -797,6 +820,26 @@ _Appears in:_
 | `name` _string_ | Name is the name of the Secret. |  | MinLength: 1 <br /> |
 
 
+#### MaxPrefixShutdownAction
+
+_Underlying type:_ _string_
+
+MaxPrefixShutdownAction defines the action taken when a peer exceeds its
+maximum-prefix limit.
+
+_Validation:_
+- Enum: [warning-only restart shutdown]
+
+_Appears in:_
+- [BGPMaximumPrefix](#bgpmaximumprefix)
+
+| Field | Description |
+| --- | --- |
+| `warning-only` | MaxPrefixShutdownActionWarningOnly logs a warning but keeps the session up.<br /> |
+| `restart` | MaxPrefixShutdownActionRestart resets the BGP session when the limit is exceeded.<br /> |
+| `shutdown` | MaxPrefixShutdownActionShutdown tears down the BGP session when the limit is exceeded.<br /> |
+
+
 #### NextHopSet
 
 
@@ -1057,6 +1100,27 @@ _Appears in:_
 | `End.DT4` | SRv6FunctionEndDT4 decapsulates and looks up the packet in an IPv4 VRF.<br /> |
 | `End.DT6` | SRv6FunctionEndDT6 decapsulates and looks up the packet in an IPv6 VRF.<br /> |
 | `End.DT46` | SRv6FunctionEndDT46 decapsulates and looks up the packet in an IPv4 or<br />IPv6 VRF based on the inner packet's address family.<br /> |
+
+
+#### SendCommunityType
+
+_Underlying type:_ _string_
+
+SendCommunityType controls which BGP community attributes are propagated
+to a peer.
+
+_Validation:_
+- Enum: [standard extended large both]
+
+_Appears in:_
+- [BGPPeerSpec](#bgppeerspec)
+
+| Field | Description |
+| --- | --- |
+| `standard` | SendCommunityTypeStandard sends only standard communities (ASN:NN).<br /> |
+| `extended` | SendCommunityTypeExtended sends only extended communities (Type:Length:Value).<br /> |
+| `large` | SendCommunityTypeLarge sends only large communities (ASN:NN:NN).<br /> |
+| `both` | SendCommunityTypeBoth sends both standard and extended communities.<br /> |
 
 
 #### TargetRef

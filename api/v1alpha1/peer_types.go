@@ -19,6 +19,62 @@ const (
 	BGPPeerStateEstablished BGPPeerState = "Established"
 )
 
+// SendCommunityType controls which BGP community attributes are propagated
+// to a peer.
+//
+// +kubebuilder:validation:Enum=standard;extended;large;both
+type SendCommunityType string
+
+const (
+	// SendCommunityTypeStandard sends only standard communities (ASN:NN).
+	SendCommunityTypeStandard SendCommunityType = "standard"
+
+	// SendCommunityTypeExtended sends only extended communities (Type:Length:Value).
+	SendCommunityTypeExtended SendCommunityType = "extended"
+
+	// SendCommunityTypeLarge sends only large communities (ASN:NN:NN).
+	SendCommunityTypeLarge SendCommunityType = "large"
+
+	// SendCommunityTypeBoth sends both standard and extended communities.
+	SendCommunityTypeBoth SendCommunityType = "both"
+)
+
+// MaxPrefixShutdownAction defines the action taken when a peer exceeds its
+// maximum-prefix limit.
+//
+// +kubebuilder:validation:Enum=warning-only;restart;shutdown
+type MaxPrefixShutdownAction string
+
+const (
+	// MaxPrefixShutdownActionWarningOnly logs a warning but keeps the session up.
+	MaxPrefixShutdownActionWarningOnly MaxPrefixShutdownAction = "warning-only"
+
+	// MaxPrefixShutdownActionRestart resets the BGP session when the limit is exceeded.
+	MaxPrefixShutdownActionRestart MaxPrefixShutdownAction = "restart"
+
+	// MaxPrefixShutdownActionShutdown tears down the BGP session when the limit is exceeded.
+	MaxPrefixShutdownActionShutdown MaxPrefixShutdownAction = "shutdown"
+)
+
+// BGPMaximumPrefix defines the maximum number of routes accepted from a peer
+// before triggering a shutdown action.
+type BGPMaximumPrefix struct {
+	// Limit is the maximum number of routes accepted from this peer.
+	// +kubebuilder:validation:Minimum=1
+	Limit int32 `json:"limit"`
+
+	// ThresholdPercent is the percentage threshold at which a warning is
+	// logged (e.g., 75 means warn at 75% of Limit). Range: 1-100.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=100
+	ThresholdPercent *int32 `json:"thresholdPercent,omitempty"`
+
+	// ShutdownAction is the action taken when the Limit is exceeded.
+	// +kubebuilder:validation:Required
+	ShutdownAction MaxPrefixShutdownAction `json:"shutdownAction"`
+}
+
 // Condition type constants for BGPPeer.
 //
 // These follow Kubernetes condition conventions: a small set of stable,
@@ -167,6 +223,30 @@ type BGPPeerSpec struct {
 	// +kubebuilder:validation:Minimum=0
 	// +optional
 	RemovePrivateAS *int32 `json:"removePrivateAS,omitempty"`
+
+	// UpdateSource is the local IP address or interface name used as the
+	// source for the BGP TCP session. Useful when the local router has
+	// multiple addresses or when pinning to a specific loopback.
+	// +optional
+	UpdateSource *string `json:"updateSource,omitempty"`
+
+	// SendCommunity controls which BGP community attributes are propagated
+	// to this peer. When unset, communities are not sent.
+	// +optional
+	SendCommunity *SendCommunityType `json:"sendCommunity,omitempty"`
+
+	// AllowASIn allows routes that contain the local ASN in the AS_PATH
+	// to be accepted from this peer. The value specifies the maximum number
+	// of times the local ASN may appear. Range: 1-10.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=10
+	AllowASIn *int32 `json:"allowASIn,omitempty"`
+
+	// MaximumPrefix defines the maximum number of routes accepted from this
+	// peer before triggering a shutdown action.
+	// +optional
+	MaximumPrefix *BGPMaximumPrefix `json:"maximumPrefix,omitempty"`
 
 	// DefaultOriginRoute controls default route origination for this peer.
 	// "igp" originates a default route with IGP origin.

@@ -609,3 +609,259 @@ func TestBGPPeerNewFieldsDeepCopy(t *testing.T) {
 		t.Errorf("RouteMapOut mutated via copy: got %q, want %q", peer.Spec.RouteMapOut, "evpn-export")
 	}
 }
+
+// TestSendCommunityTypeConstants verifies the enum constants.
+func TestSendCommunityTypeConstants(t *testing.T) {
+	if SendCommunityTypeStandard != "standard" {
+		t.Errorf("SendCommunityTypeStandard = %q, want %q", SendCommunityTypeStandard, "standard")
+	}
+	if SendCommunityTypeExtended != "extended" {
+		t.Errorf("SendCommunityTypeExtended = %q, want %q", SendCommunityTypeExtended, "extended")
+	}
+	if SendCommunityTypeLarge != "large" {
+		t.Errorf("SendCommunityTypeLarge = %q, want %q", SendCommunityTypeLarge, "large")
+	}
+	if SendCommunityTypeBoth != "both" {
+		t.Errorf("SendCommunityTypeBoth = %q, want %q", SendCommunityTypeBoth, "both")
+	}
+}
+
+// TestMaxPrefixShutdownActionConstants verifies the enum constants.
+func TestMaxPrefixShutdownActionConstants(t *testing.T) {
+	if MaxPrefixShutdownActionWarningOnly != "warning-only" {
+		t.Errorf("MaxPrefixShutdownActionWarningOnly = %q, want %q", MaxPrefixShutdownActionWarningOnly, "warning-only")
+	}
+	if MaxPrefixShutdownActionRestart != "restart" {
+		t.Errorf("MaxPrefixShutdownActionRestart = %q, want %q", MaxPrefixShutdownActionRestart, "restart")
+	}
+	if MaxPrefixShutdownActionShutdown != "shutdown" {
+		t.Errorf("MaxPrefixShutdownActionShutdown = %q, want %q", MaxPrefixShutdownActionShutdown, "shutdown")
+	}
+}
+
+// TestBGPPeerExtendedFieldsJSONRoundTrip verifies that updateSource,
+// sendCommunity, allowASIn, and maximumPrefix survive JSON round-trip.
+func TestBGPPeerExtendedFieldsJSONRoundTrip(t *testing.T) {
+	peer := newTestPeer()
+	src := "lo"
+	comm := SendCommunityTypeBoth
+	allowAS := int32(3)
+	threshold := int32(75)
+	peer.Spec.UpdateSource = &src
+	peer.Spec.SendCommunity = &comm
+	peer.Spec.AllowASIn = &allowAS
+	peer.Spec.MaximumPrefix = &BGPMaximumPrefix{
+		Limit:            1000,
+		ThresholdPercent: &threshold,
+		ShutdownAction:   MaxPrefixShutdownActionShutdown,
+	}
+
+	data, err := json.Marshal(peer)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var got BGPPeer
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if got.Spec.UpdateSource == nil || *got.Spec.UpdateSource != src {
+		t.Errorf("UpdateSource: got %v, want %q", got.Spec.UpdateSource, src)
+	}
+	if got.Spec.SendCommunity == nil || *got.Spec.SendCommunity != comm {
+		t.Errorf("SendCommunity: got %v, want %q", got.Spec.SendCommunity, comm)
+	}
+	if got.Spec.AllowASIn == nil || *got.Spec.AllowASIn != allowAS {
+		t.Errorf("AllowASIn: got %v, want %d", got.Spec.AllowASIn, allowAS)
+	}
+	if got.Spec.MaximumPrefix == nil {
+		t.Fatal("MaximumPrefix is nil")
+	} else {
+		mp := got.Spec.MaximumPrefix
+		if mp.Limit != 1000 {
+			t.Errorf("MaximumPrefix.Limit: got %d, want 1000", mp.Limit)
+		}
+		if mp.ThresholdPercent == nil || *mp.ThresholdPercent != threshold {
+			t.Errorf("MaximumPrefix.ThresholdPercent: got %v, want %d", mp.ThresholdPercent, threshold)
+		}
+		if mp.ShutdownAction != MaxPrefixShutdownActionShutdown {
+			t.Errorf("MaximumPrefix.ShutdownAction: got %q, want %q", mp.ShutdownAction, MaxPrefixShutdownActionShutdown)
+		}
+	}
+}
+
+// TestBGPPeerExtendedFieldsJSONKeys verifies the JSON key names for the
+// extended fields are present when set.
+func TestBGPPeerExtendedFieldsJSONKeys(t *testing.T) {
+	peer := newTestPeer()
+	src := "lo"
+	comm := SendCommunityTypeStandard
+	allowAS := int32(1)
+	peer.Spec.UpdateSource = &src
+	peer.Spec.SendCommunity = &comm
+	peer.Spec.AllowASIn = &allowAS
+	peer.Spec.MaximumPrefix = &BGPMaximumPrefix{
+		Limit:          500,
+		ShutdownAction: MaxPrefixShutdownActionWarningOnly,
+	}
+
+	data, err := json.Marshal(peer.Spec)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	for _, key := range []string{"updateSource", "sendCommunity", "allowASIn", "maximumPrefix"} {
+		if _, ok := m[key]; !ok {
+			t.Fatalf("expected JSON key %q not found", key)
+		}
+	}
+}
+
+// TestBGPPeerExtendedFieldsOmittedWhenNil verifies that the optional extended
+// fields are omitted from JSON when unset.
+func TestBGPPeerExtendedFieldsOmittedWhenNil(t *testing.T) {
+	peer := newTestPeer()
+
+	data, err := json.Marshal(peer.Spec)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	for _, key := range []string{"updateSource", "sendCommunity", "allowASIn", "maximumPrefix"} {
+		if _, ok := m[key]; ok {
+			t.Errorf("expected %q to be omitted when unset", key)
+		}
+	}
+}
+
+// TestBGPPeerExtendedFieldsDeepCopy verifies DeepCopy produces independent
+// copies of the extended pointer fields.
+func TestBGPPeerExtendedFieldsDeepCopy(t *testing.T) {
+	peer := newTestPeer()
+	src := "lo"
+	comm := SendCommunityTypeBoth
+	allowAS := int32(5)
+	threshold := int32(80)
+	peer.Spec.UpdateSource = &src
+	peer.Spec.SendCommunity = &comm
+	peer.Spec.AllowASIn = &allowAS
+	peer.Spec.MaximumPrefix = &BGPMaximumPrefix{
+		Limit:            2000,
+		ThresholdPercent: &threshold,
+		ShutdownAction:   MaxPrefixShutdownActionRestart,
+	}
+
+	copied := peer.DeepCopy()
+
+	// Mutate the copy.
+	newSrc := "eth0"
+	newComm := SendCommunityTypeLarge
+	newAllowAS := int32(10)
+	newThreshold := int32(50)
+	copied.Spec.UpdateSource = &newSrc
+	copied.Spec.SendCommunity = &newComm
+	copied.Spec.AllowASIn = &newAllowAS
+	copied.Spec.MaximumPrefix.Limit = 9999
+	*copied.Spec.MaximumPrefix.ThresholdPercent = newThreshold
+	copied.Spec.MaximumPrefix.ShutdownAction = MaxPrefixShutdownActionWarningOnly
+
+	// Verify original is unchanged.
+	if *peer.Spec.UpdateSource != src {
+		t.Errorf("UpdateSource mutated: got %q, want %q", *peer.Spec.UpdateSource, src)
+	}
+	if *peer.Spec.SendCommunity != comm {
+		t.Errorf("SendCommunity mutated: got %q, want %q", *peer.Spec.SendCommunity, comm)
+	}
+	if *peer.Spec.AllowASIn != allowAS {
+		t.Errorf("AllowASIn mutated: got %d, want %d", *peer.Spec.AllowASIn, allowAS)
+	}
+	if peer.Spec.MaximumPrefix.Limit != 2000 {
+		t.Errorf("MaximumPrefix.Limit mutated: got %d, want 2000", peer.Spec.MaximumPrefix.Limit)
+	}
+	if *peer.Spec.MaximumPrefix.ThresholdPercent != threshold {
+		t.Errorf("ThresholdPercent mutated: got %d, want %d", *peer.Spec.MaximumPrefix.ThresholdPercent, threshold)
+	}
+	if peer.Spec.MaximumPrefix.ShutdownAction != MaxPrefixShutdownActionRestart {
+		t.Errorf("ShutdownAction mutated: got %q, want %q", peer.Spec.MaximumPrefix.ShutdownAction, MaxPrefixShutdownActionRestart)
+	}
+}
+
+// TestBGPMaximumPrefixJSONRoundTrip verifies the BGPMaximumPrefix struct
+// serialises and deserialises correctly, including when ThresholdPercent is nil.
+func TestBGPMaximumPrefixJSONRoundTrip(t *testing.T) {
+	t.Run("with threshold", func(t *testing.T) {
+		threshold := int32(75)
+		orig := BGPMaximumPrefix{
+			Limit:            1000,
+			ThresholdPercent: &threshold,
+			ShutdownAction:   MaxPrefixShutdownActionShutdown,
+		}
+
+		data, err := json.Marshal(orig)
+		if err != nil {
+			t.Fatalf("Marshal: %v", err)
+		}
+
+		var got BGPMaximumPrefix
+		if err := json.Unmarshal(data, &got); err != nil {
+			t.Fatalf("Unmarshal: %v", err)
+		}
+
+		if got.Limit != orig.Limit {
+			t.Errorf("Limit: got %d, want %d", got.Limit, orig.Limit)
+		}
+		if got.ThresholdPercent == nil || *got.ThresholdPercent != *orig.ThresholdPercent {
+			t.Errorf("ThresholdPercent: got %v, want %d", got.ThresholdPercent, *orig.ThresholdPercent)
+		}
+		if got.ShutdownAction != orig.ShutdownAction {
+			t.Errorf("ShutdownAction: got %q, want %q", got.ShutdownAction, orig.ShutdownAction)
+		}
+	})
+
+	t.Run("without threshold", func(t *testing.T) {
+		orig := BGPMaximumPrefix{
+			Limit:          500,
+			ShutdownAction: MaxPrefixShutdownActionWarningOnly,
+		}
+
+		data, err := json.Marshal(orig)
+		if err != nil {
+			t.Fatalf("Marshal: %v", err)
+		}
+
+		var got BGPMaximumPrefix
+		if err := json.Unmarshal(data, &got); err != nil {
+			t.Fatalf("Unmarshal: %v", err)
+		}
+
+		if got.Limit != 500 {
+			t.Errorf("Limit: got %d, want 500", got.Limit)
+		}
+		if got.ThresholdPercent != nil {
+			t.Errorf("ThresholdPercent: got %v, want nil", got.ThresholdPercent)
+		}
+		if got.ShutdownAction != MaxPrefixShutdownActionWarningOnly {
+			t.Errorf("ShutdownAction: got %q, want %q", got.ShutdownAction, MaxPrefixShutdownActionWarningOnly)
+		}
+
+		// Verify thresholdPercent is omitted from JSON.
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Unmarshal to map: %v", err)
+		}
+		if _, ok := m["thresholdPercent"]; ok {
+			t.Error("expected thresholdPercent to be omitted when nil")
+		}
+	})
+}
