@@ -81,7 +81,7 @@ The design follows standard Kubernetes API conventions: resources have a `Spec` 
 | `router_types.go`           | `BGPRouter`, `BGPRouterSpec`, `BGPRouterStatus`                                                                                                                   |
 | `peer_types.go`             | `BGPPeer`, `BGPPeerSpec`, `BGPPeerStatus`, condition constants, `updatePeerConditions`, `SetAcceptedCondition`                                                     |
 | `advertisement_types.go`    | `BGPAdvertisement`, `BGPAdvertisementSpec`, `BGPAdvertisementStatus`                                                                                              |
-| `policy_types.go`           | `BGPPolicy`, `BGPPolicySpec`, `BGPPolicyTerm`, `BGPPolicyMatch`, `PolicySetActions`, `CommunitySet`                                                               |
+| `policy_types.go`           | `BGPPolicy`, `BGPPolicySpec`, `BGPPolicyTerm`, `BGPPolicyMatch`, `BGPPolicySetActions`, `CommunitySet`                                                               |
 | `vrf_types.go`              | `BGPVRFInstance`, `BGPVRFInstanceSpec`, `BGPVRFInstanceStatus`, `RouteTarget`                                                                                     |
 | `shared_types.go`           | `RouterTarget`, `RouterRef`, `RouterSelector`, `TargetRef`, `AddressFamily`, `AFI`, `SAFI`, `RouterRole`, `LocalSecretRef`, `RouterStatus`, `ResolvedRouterConfig` |
 | `zz_generated.deepcopy.go`  | Generated `DeepCopy*` methods — do not edit                                                                                                                       |
