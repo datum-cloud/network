@@ -468,6 +468,7 @@ _Validation:_
 
 _Appears in:_
 - [BGPPolicyTerm](#bgppolicyterm)
+- [BGPPrefixListEntry](#bgpprefixlistentry)
 
 | Field | Description |
 | --- | --- |
@@ -572,6 +573,31 @@ _Appears in:_
 | `match` _[BGPPolicyMatch](#bgppolicymatch)_ | Match defines the conditions under which this term fires. |  |  |
 | `action` _[BGPPolicyAction](#bgppolicyaction)_ | Action is the disposition when this term matches. |  | Enum: [permit deny] <br /> |
 | `set` _[PolicySetActions](#policysetactions)_ | Set defines mutations applied when action is "permit".<br />Must not be set when action is "deny". |  |  |
+
+
+#### BGPPrefixListEntry
+
+
+
+BGPPrefixListEntry defines a single entry in a named BGP prefix-list.
+Entries are evaluated in ascending sequence order.
+
+
+
+_Appears in:_
+- [BGPPrefixListSpec](#bgpprefixlistspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `sequence` _integer_ | Sequence is the evaluation order for this entry. Entries with lower<br />sequence numbers are evaluated first. Must be unique within the list. |  | Maximum: 4.294967295e+09 <br />Minimum: 5 <br /> |
+| `action` _[BGPPolicyAction](#bgppolicyaction)_ | Action is the disposition when a route's prefix matches this entry. |  | Enum: [permit deny] <br />Required: \{\} <br /> |
+| `prefix` _string_ | Prefix is the IPv4 or IPv6 CIDR to match against. |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `ge` _integer_ | GE is the minimum prefix-length to match (greater-than-or-equal).<br />For example, "10.0.0.0/8 ge 16" matches 10.0.0.0/16 through 10.0.0.0/32.<br />When unset, the prefix-length of Prefix is the lower bound. |  | Maximum: 32 <br />Minimum: 0 <br /> |
+| `le` _integer_ | LE is the maximum prefix-length to match (less-than-or-equal).<br />For example, "10.0.0.0/8 le 24" matches 10.0.0.0/8 through 10.0.0.0/24.<br />When unset, the prefix-length of Prefix is the upper bound. |  | Maximum: 32 <br />Minimum: 0 <br /> |
+
+
+
+
 
 
 #### BGPRouter
