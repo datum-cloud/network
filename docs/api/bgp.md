@@ -156,7 +156,7 @@ AsPathSet defines AS path manipulation operations.
 
 
 _Appears in:_
-- [PolicySetActions](#policysetactions)
+- [BGPPolicySetActions](#bgppolicysetactions)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -340,7 +340,7 @@ _Validation:_
 - Enum: [igp egp incomplete]
 
 _Appears in:_
-- [PolicySetActions](#policysetactions)
+- [BGPPolicySetActions](#bgppolicysetactions)
 
 | Field | Description |
 | --- | --- |
@@ -599,6 +599,29 @@ _Appears in:_
 | `med` _integer_ | MED matches routes by Multi-Exit Discriminator value. |  | Minimum: 0 <br /> |
 
 
+#### BGPPolicySetActions
+
+
+
+BGPPolicySetActions defines mutations applied when a term matches with action "permit".
+
+
+
+_Appears in:_
+- [BGPPolicyTerm](#bgppolicyterm)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `communities` _[CommunitySet](#communityset)_ | Communities defines community add/remove operations. |  |  |
+| `localPreference` _integer_ | LocalPreference sets the LOCAL_PREF attribute.<br />Only meaningful on import (iBGP) or export to iBGP peers. |  | Minimum: 0 <br /> |
+| `origin` _[BGPOrigin](#bgporigin)_ | Origin sets the BGP origin attribute. |  | Enum: [igp egp incomplete] <br /> |
+| `asPath` _[AsPathSet](#aspathset)_ | AsPath manipulates the AS path (prepend or replace). |  |  |
+| `nextHop` _[NextHopSet](#nexthopset)_ | NextHop overrides the next-hop attribute. |  |  |
+| `extCommunities` _[ExtendedCommunitySet](#extendedcommunityset)_ | ExtCommunities defines extended community add/remove operations.<br />Each entry must be in a valid extended community format (ASN:NN, IP:NN,<br />or type-specific like "rt:65000:100"). |  |  |
+| `metric` _integer_ | Metric sets the MED (Multi-Exit Discriminator) attribute. |  | Minimum: 0 <br /> |
+| `color` _integer_ | Color sets the SRv6 policy color for path selection. |  | Minimum: 0 <br /> |
+
+
 #### BGPPolicySpec
 
 
@@ -651,7 +674,7 @@ _Appears in:_
 | `sequence` _integer_ | Sequence is the evaluation order. Lower values are evaluated first.<br />Must be unique within the policy. |  | Maximum: 65535 <br />Minimum: 1 <br /> |
 | `match` _[BGPPolicyMatch](#bgppolicymatch)_ | Match defines the conditions under which this term fires. |  |  |
 | `action` _[BGPPolicyAction](#bgppolicyaction)_ | Action is the disposition when this term matches. |  | Enum: [permit deny] <br /> |
-| `set` _[PolicySetActions](#policysetactions)_ | Set defines mutations applied when action is "permit".<br />Must not be set when action is "deny". |  |  |
+| `set` _[BGPPolicySetActions](#bgppolicysetactions)_ | Set defines mutations applied when action is "permit".<br />Must not be set when action is "deny". |  |  |
 
 
 #### BGPPrefixListEntry
@@ -862,7 +885,7 @@ CommunitySet defines community add and remove operations.
 
 
 _Appears in:_
-- [PolicySetActions](#policysetactions)
+- [BGPPolicySetActions](#bgppolicysetactions)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -900,7 +923,7 @@ ExtendedCommunitySet defines extended community add and remove operations.
 
 
 _Appears in:_
-- [PolicySetActions](#policysetactions)
+- [BGPPolicySetActions](#bgppolicysetactions)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -954,7 +977,7 @@ NextHopSet defines next-hop attribute overrides.
 
 
 _Appears in:_
-- [PolicySetActions](#policysetactions)
+- [BGPPolicySetActions](#bgppolicysetactions)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -979,29 +1002,6 @@ _Appears in:_
 | `igp` |  |
 | `egp` |  |
 | `incomplete` |  |
-
-
-#### PolicySetActions
-
-
-
-PolicySetActions defines mutations applied when a term matches with action "permit".
-
-
-
-_Appears in:_
-- [BGPPolicyTerm](#bgppolicyterm)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `communities` _[CommunitySet](#communityset)_ | Communities defines community add/remove operations. |  |  |
-| `localPreference` _integer_ | LocalPreference sets the LOCAL_PREF attribute.<br />Only meaningful on import (iBGP) or export to iBGP peers. |  | Minimum: 0 <br /> |
-| `origin` _[BGPOrigin](#bgporigin)_ | Origin sets the BGP origin attribute. |  | Enum: [igp egp incomplete] <br /> |
-| `asPath` _[AsPathSet](#aspathset)_ | AsPath manipulates the AS path (prepend or replace). |  |  |
-| `nextHop` _[NextHopSet](#nexthopset)_ | NextHop overrides the next-hop attribute. |  |  |
-| `extCommunities` _[ExtendedCommunitySet](#extendedcommunityset)_ | ExtCommunities defines extended community add/remove operations.<br />Each entry must be in a valid extended community format (ASN:NN, IP:NN,<br />or type-specific like "rt:65000:100"). |  |  |
-| `metric` _integer_ | Metric sets the MED (Multi-Exit Discriminator) attribute. |  | Minimum: 0 <br /> |
-| `color` _integer_ | Color sets the SRv6 policy color for path selection. |  | Minimum: 0 <br /> |
 
 
 #### Prefix

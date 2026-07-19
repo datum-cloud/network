@@ -29,7 +29,7 @@ func newTestPolicy() *BGPPolicy {
 						},
 					},
 					Action: BGPPolicyActionPermit,
-					Set: &PolicySetActions{
+					Set: &BGPPolicySetActions{
 						LocalPreference: &lp,
 					},
 				},
@@ -216,8 +216,8 @@ func TestBGPPolicyMatchFieldNamesJSON(t *testing.T) {
 	}
 }
 
-// TestPolicySetActionsFieldNamesJSON verifies that set action field JSON keys are correct.
-func TestPolicySetActionsFieldNamesJSON(t *testing.T) {
+// TestBGPPolicySetActionsFieldNamesJSON verifies that set action field JSON keys are correct.
+func TestBGPPolicySetActionsFieldNamesJSON(t *testing.T) {
 	self := true
 	metric := int32(100)
 	color := int32(42)
@@ -225,7 +225,7 @@ func TestPolicySetActionsFieldNamesJSON(t *testing.T) {
 	prepend := uint32(2)
 	asn := int64(65000)
 
-	set := PolicySetActions{
+	set := BGPPolicySetActions{
 		Origin: &origin,
 		AsPath: &AsPathSet{
 			Prepend: &prepend,
@@ -313,8 +313,8 @@ func TestBGPPolicyMatchDeepCopy(t *testing.T) {
 	}
 }
 
-// TestPolicySetActionsDeepCopy verifies deep copy isolation for all new set action fields.
-func TestPolicySetActionsDeepCopy(t *testing.T) {
+// TestBGPPolicySetActionsDeepCopy verifies deep copy isolation for all new set action fields.
+func TestBGPPolicySetActionsDeepCopy(t *testing.T) {
 	self := true
 	metric := int32(100)
 	color := int32(42)
@@ -322,7 +322,7 @@ func TestPolicySetActionsDeepCopy(t *testing.T) {
 	prepend := uint32(2)
 	asn := int64(65000)
 
-	orig := &PolicySetActions{
+	orig := &BGPPolicySetActions{
 		Origin: &origin,
 		AsPath: &AsPathSet{
 			Prepend: &prepend,
@@ -412,8 +412,8 @@ func TestBGPPolicyMatchJSONRoundTrip(t *testing.T) {
 	}
 }
 
-// TestPolicySetActionsJSONRoundTrip verifies the full set actions struct round-trips cleanly.
-func TestPolicySetActionsJSONRoundTrip(t *testing.T) {
+// TestBGPPolicySetActionsJSONRoundTrip verifies the full set actions struct round-trips cleanly.
+func TestBGPPolicySetActionsJSONRoundTrip(t *testing.T) {
 	self := false
 	addr := "2001:db8::1"
 	metric := int32(200)
@@ -422,7 +422,7 @@ func TestPolicySetActionsJSONRoundTrip(t *testing.T) {
 	prepend := uint32(3)
 	asn := int64(65000)
 
-	orig := PolicySetActions{
+	orig := BGPPolicySetActions{
 		Origin: &origin,
 		AsPath: &AsPathSet{
 			Prepend: &prepend,
@@ -445,7 +445,7 @@ func TestPolicySetActionsJSONRoundTrip(t *testing.T) {
 		t.Fatalf("Marshal: %v", err)
 	}
 
-	var got PolicySetActions
+	var got BGPPolicySetActions
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}

@@ -86,7 +86,7 @@ type BGPPolicyTerm struct {
 	// Set defines mutations applied when action is "permit".
 	// Must not be set when action is "deny".
 	// +optional
-	Set *PolicySetActions `json:"set,omitempty"`
+	Set *BGPPolicySetActions `json:"set,omitempty"`
 }
 
 // BGPPolicyMatch defines the conditions under which a policy term fires.
@@ -219,8 +219,8 @@ const (
 	EVPNRouteTypeIPv6PrefixAdvertisement EVPNRouteType = "iPv6PrefixAdvertisement"
 )
 
-// PolicySetActions defines mutations applied when a term matches with action "permit".
-type PolicySetActions struct {
+// BGPPolicySetActions defines mutations applied when a term matches with action "permit".
+type BGPPolicySetActions struct {
 	// Communities defines community add/remove operations.
 	// +optional
 	Communities *CommunitySet `json:"communities,omitempty"`
