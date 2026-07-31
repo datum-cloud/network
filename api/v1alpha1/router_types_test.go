@@ -339,3 +339,103 @@ func TestBGPRouterNodeIDOmitEmpty(t *testing.T) {
 		t.Error("expected \"nodeID\" key to be absent when empty")
 	}
 }
+
+// TestBGPRouterJSONRoundTripListenPort verifies that ListenPort survives
+// JSON marshal/unmarshal.
+func TestBGPRouterJSONRoundTripListenPort(t *testing.T) {
+	orig := newTestRouter(RouterRoleFabric)
+	port := int32(179)
+	orig.Spec.ListenPort = &port
+
+	data, err := json.Marshal(orig)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var got BGPRouter
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if got.Spec.ListenPort == nil {
+		t.Fatal("expected ListenPort to be set")
+	} else if *got.Spec.ListenPort != port {
+		t.Errorf("ListenPort: got %d, want %d", *got.Spec.ListenPort, port)
+	}
+}
+
+// TestBGPRouterListenPortFieldName verifies the JSON key is "listenPort".
+func TestBGPRouterListenPortFieldName(t *testing.T) {
+	orig := newTestRouter(RouterRoleFabric)
+	port := int32(179)
+	orig.Spec.ListenPort = &port
+
+	data, err := json.Marshal(orig.Spec)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if raw, ok := m["listenPort"]; !ok || raw != float64(179) {
+		t.Errorf("unexpected listenPort value: %v", raw)
+	}
+}
+
+// TestBGPRouterListenPortOmitEmpty verifies that a router without a
+// ListenPort omits the "listenPort" key from JSON output.
+func TestBGPRouterListenPortOmitEmpty(t *testing.T) {
+	orig := newTestRouter(RouterRoleFabric)
+
+	data, err := json.Marshal(orig.Spec)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if _, ok := m["listenPort"]; ok {
+		t.Error("expected \"listenPort\" key to be absent when empty")
+	}
+}
+
+// TestBGPRouterListenPortBoundaryValues verifies that port values 1 and 65535
+// marshal and unmarshal correctly.
+func TestBGPRouterListenPortBoundaryValues(t *testing.T) {
+	cases := []struct {
+		name string
+		port int32
+	}{
+		{"min port 1", 1},
+		{"max port 65535", 65535},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			orig := newTestRouter(RouterRoleFabric)
+			orig.Spec.ListenPort = &tc.port
+
+			data, err := json.Marshal(orig.Spec)
+			if err != nil {
+				t.Fatalf("Marshal: %v", err)
+			}
+
+			var got BGPRouterSpec
+			if err := json.Unmarshal(data, &got); err != nil {
+				t.Fatalf("Unmarshal: %v", err)
+			}
+
+			if got.ListenPort == nil {
+				t.Fatal("expected ListenPort to be set")
+			} else if *got.ListenPort != tc.port {
+				t.Errorf("ListenPort: got %d, want %d", *got.ListenPort, tc.port)
+			}
+		})
+	}
+}

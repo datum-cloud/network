@@ -77,6 +77,13 @@ type BGPRouterSpec struct {
 	// +kubebuilder:validation:Maximum=254
 	// +optional
 	NodeID int32 `json:"nodeID,omitempty"`
+
+	// ListenPort is the TCP port this router listens on for incoming BGP
+	// peer connections. Defaults to 179 (the IANA-assigned BGP port) if unset.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	ListenPort *int32 `json:"listenPort,omitempty"`
 }
 
 // BGPRouterStatus defines the observed state of a BGPRouter.

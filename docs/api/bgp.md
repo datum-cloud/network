@@ -781,6 +781,7 @@ _Appears in:_
 | `addressFamilies` _[AddressFamily](#addressfamily) array_ | AddressFamilies defines the address families this router activates. |  | MinItems: 1 <br /> |
 | `srv6Locator` _string_ | SRv6Locator is the SRv6 locator block this router owns, expressed as an<br />IPv6 CIDR (e.g. "2001:db8:ff01::/48"). Individual SRv6 endpoint SIDs are<br />host addresses within this block. |  |  |
 | `nodeID` _integer_ | NodeID is this router's 8-bit slot within its PoP's SRv6Locator block,<br />used for RFC 9800 NEXT-CSID compression. Unique within the PoP.<br />Values 0 and 255 are reserved. |  | Maximum: 254 <br />Minimum: 1 <br /> |
+| `listenPort` _integer_ | ListenPort is the TCP port this router listens on for incoming BGP<br />peer connections. Defaults to 179 (the IANA-assigned BGP port) if unset. |  | Maximum: 65535 <br />Minimum: 1 <br /> |
 
 
 #### BGPRouterStatus
