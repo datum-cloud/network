@@ -98,6 +98,14 @@ spec:
                     rule: 'self.afi == ''l2vpn'' ? self.safi == ''evpn'' : true'
                 minItems: 1
                 type: array
+              listenPort:
+                description: |-
+                  ListenPort is the TCP port this router listens on for incoming BGP
+                  peer connections. Defaults to 179 (the IANA-assigned BGP port) if unset.
+                format: int32
+                maximum: 65535
+                minimum: 1
+                type: integer
               localASN:
                 description: |-
                   LocalASN is the BGP Autonomous System Number for this router.
