@@ -1,0 +1,17 @@
+apiVersion: network.datumapis.com/v1alpha1
+kind: NetworkRule
+metadata:
+  name: vpc-a-https
+  namespace: galactic-system
+spec:
+  vpcRef: vpc-a
+  vpcAttachmentRef: vpc-a-iad
+  vipAddresses:
+    - 2001:db8:1::10
+  protocol: tcp
+  port: 443
+  backends:
+    - address: fd00:10:1::1
+      port: 8443
+    - address: fd00:10:1::2
+      port: 8443
