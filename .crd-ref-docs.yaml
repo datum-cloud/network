@@ -2,6 +2,14 @@ processor:
   docPaths: []
   ignoreTypes:
     - ".*List$"
+    - "NetworkGateway"
+    - "NetworkGatewaySpec"
+    - "NetworkGatewayStatus"
+    - "NetworkRule"
+    - "NetworkRuleBackend"
+    - "NetworkRuleProtocol"
+    - "NetworkRuleSpec"
+    - "NetworkRuleStatus"
   ignoreFields: []
 
 render:

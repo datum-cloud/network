@@ -22,7 +22,7 @@ task lint-fix         # Same with auto-fix applied
 task generate         # Run all generators (methods, manifests, docs)
 task generate:methods   # Regenerate zz_generated.deepcopy.go files
 task generate:manifests # Regenerate CRD YAML in config/crd/ from Go types
-task generate:docs    # Regenerate docs/api/bgp.md from Go types
+task generate:docs    # Regenerate docs/api/bgp.md and docs/api/gateway.md from Go types
 task ci               # Full local pipeline: build → lint → test:unit → test:e2e
 task clean            # Remove ./bin/ and cover.out
 ```
@@ -38,9 +38,9 @@ All dev tools (golangci-lint, controller-gen, chainsaw, yamlfmt) are installed l
 
 ### API groups
 
-| Group              | Version    | Resources                                                       |
-|--------------------|------------|-----------------------------------------------------------------|
-| `network.datumapis.com` | `v1alpha1` | BGPRouter, BGPPeer, BGPAdvertisement, BGPPolicy, BGPVRFInstance |
+| Group              | Version    | Resources                                                                 |
+|--------------------|------------|---------------------------------------------------------------------------|
+| `network.datumapis.com` | `v1alpha1` | BGPRouter, BGPPeer, BGPAdvertisement, BGPPolicy, BGPVRFInstance, NetworkGateway, NetworkRule |
 
 Source lives in `api/v1alpha1/`. Each resource has its own `*_types.go` file; shared types (RouterTarget, AddressFamily, etc.) live in `shared_types.go`.
 
@@ -60,7 +60,7 @@ The `RouterTarget` struct (in `shared_types.go`) is embedded by resources that s
 - **Kubernetes 1.28+ required** — CEL functions `isIP()` and `isCIDR()` are used for field validation.
 - **Status conditions** follow `metav1.Condition` conventions. Condition type constants (e.g., `ConditionTypeReady`, `ConditionTypeAccepted`) are defined alongside the resource type they belong to.
 - **YAML files must use `.yaml` extension**, never `.yml` — the lint task enforces this.
-- **Never hand-edit generated files** — `docs/api/bgp.md`, `config/crd/*.yaml`, and `zz_generated.deepcopy.go` are all generated. Always regenerate via `task generate` (or the individual `generate:methods`, `generate:manifests`, `generate:docs` targets). Editing them directly will be overwritten and drifts from source of truth.
+- **Never hand-edit generated files** — `docs/api/bgp.md`, `docs/api/gateway.md`, `config/crd/*.yaml`, and `zz_generated.deepcopy.go` are all generated. Always regenerate via `task generate` (or the individual `generate:methods`, `generate:manifests`, `generate:docs` targets). Editing them directly will be overwritten and drifts from source of truth.
 
 ### Code generation
 
@@ -68,9 +68,9 @@ After changing kubebuilder markers (`// +kubebuilder:...`) or adding new types:
 
 1. `task generate:methods` — regenerates `zz_generated.deepcopy.go`
 2. `task generate:manifests` — regenerates CRDs in `config/crd/`
-3. `task generate:docs` — regenerates `docs/api/bgp.md` from Go types (config in `.crd-ref-docs.yaml`)
+3. `task generate:docs` — regenerates `docs/api/bgp.md` and `docs/api/gateway.md` from Go types (configs in `.crd-ref-docs.yaml` and `.crd-ref-docs-gateway.yaml`)
 
-Or run `task generate` to execute all three in order. All three are generated; never edit `zz_generated.deepcopy.go`, CRD YAML, or `docs/api/bgp.md` directly.
+Or run `task generate` to execute all three in order. All three are generated; never edit `zz_generated.deepcopy.go`, CRD YAML, or `docs/api/*.md` directly.
 
 ### Testing
 
@@ -86,7 +86,9 @@ See [CONVENTIONS.md](docs/agents/CONVENTIONS.md) for coding standards, naming ru
 
 ## Docs
 
-- `docs/api/bgp.md` — full BGP CRD field reference
+- `docs/api/index.md` — API docs index (links to bgp.md and gateway.md)
+- `docs/api/bgp.md` — BGP CRD field reference (generated)
+- `docs/api/gateway.md` — Gateway CRD field reference (generated)
 - `docs/getting-started.md` — install and first resources
 - `docs/enhancements/` — design proposals
 ## GitHub PR / Issue / Comment Conventions
