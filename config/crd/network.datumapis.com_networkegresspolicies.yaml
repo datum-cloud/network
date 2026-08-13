@@ -4,27 +4,24 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: networkgateways.network.datumapis.com
+  name: networkegresspolicies.network.datumapis.com
 spec:
   group: network.datumapis.com
   names:
-    kind: NetworkGateway
-    listKind: NetworkGatewayList
-    plural: networkgateways
+    kind: NetworkEgressPolicy
+    listKind: NetworkEgressPolicyList
+    plural: networkegresspolicies
     shortNames:
-    - netgw
-    singular: networkgateway
+    - netegress
+    singular: networkegresspolicy
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.targetRef.name
-      name: TARGET
+    - jsonPath: .spec.vpcRef
+      name: VPC
       type: string
-    - jsonPath: .status.sRv6Address
-      name: SRV6-ADDRESS
-      type: string
-    - jsonPath: .status.egressAddress
-      name: EGRESS-ADDRESS
+    - jsonPath: .spec.vpcAttachmentRef
+      name: VPC-ATTACHMENT
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: AGE
@@ -33,25 +30,30 @@ spec:
     schema:
       openAPIV3Schema:
         description: |-
-          NetworkGateway defines an XDP ingress NAT+LB gateway engine instance bound
-          to a single dedicated gateway-role node. Exactly one NetworkGateway exists
-          per gateway node (spec.targetRef.name is the Kubernetes node name),
-          mirroring the BGPRouter node-scoped root object pattern. NetworkRule
-          resources are assigned to a NetworkGateway via status.primaryNode.
+          NetworkEgressPolicy enables internet egress for a single tenant
+          VPC/VPCAttachment, served by the shared hyperconverged gateway engine's
+          masquerade (SNAT/PAT) datapath. Unlike NetworkRule, it carries no
+          VIP/backend/port: egress is on or off for a (vpcRef, vpcAttachmentRef)
+          pair, existence-implies-enabled, not a per-flow rule — because the
+          destination of an egress flow is an arbitrary internet address, not a
+          pre-configured backend list.
 
-          There is no tunnel overlay in this design (an earlier Geneve-based
-          approach was superseded before this type shipped): the gateway's XDP
-          program does Full-NAT (DNAT the VIP to a backend Pod's address, SNAT the
-          client's source to status.sRv6Address) and pushes an SRv6 uSID outer
-          header addressed to the backend's worker node directly, so return traffic
-          (addressed to status.sRv6Address) arrives back at this same gateway node
-          over the ordinary SRv6 fabric — no compute-node encap agent, no tunnel
-          endpoint to publish. status.sRv6Address is advertised into BGP the same
-          way any workload prefix is (a BGPAdvertisement naming it, /128, Argument
-          0 — the value PR #740 reserves and forbids registering into any tenant
-          VRF, guaranteeing it never collides with a real tenant's Argument), so
-          every other node learns a real kernel SEG6 route to it for free through
-          the existing EVPN pipeline.
+          It is namespaced (deployed to galactic-system) and tenant-writable; like
+          NetworkRule, vpcRef/vpcAttachmentRef are opaque string identifiers because
+          the VPC API is owned by a separate companion operator, not this repo. An
+          admission webhook (implemented by the consuming controller) must verify
+          the requester is authorized for vpcRef/vpcAttachmentRef before a policy is
+          accepted — see the Accepted condition.
+
+          Presence of an accepted NetworkEgressPolicy resolves only *enablement*
+          (should this tenant reach the egress datapath at all) — a routing-layer
+          decision (does the tenant's VRF have a default route toward the shared
+          egress_sid locator), not a per-packet datapath lookup. *Isolation*
+          (preventing two tenants with colliding ULA source addresses from
+          colliding in the egress connection table) is a separate, datapath-level
+          concern resolved by tagging each flow with the tenant/VRF identifier
+          carried in the egress_sid locator's own Argument bits, not by anything in
+          this spec.
         properties:
           apiVersion:
             description: |-
@@ -71,33 +73,40 @@ spec:
           metadata:
             type: object
           spec:
-            description: NetworkGatewaySpec defines the desired state of a NetworkGateway.
+            description: |-
+              NetworkEgressPolicySpec defines the desired egress-enablement state for a
+              tenant VPC/VPCAttachment.
             properties:
-              targetRef:
-                description: TargetRef identifies the Node this gateway engine executes
-                  on.
-                properties:
-                  kind:
-                    description: Kind is the target resource kind (e.g. Node).
-                    minLength: 1
-                    type: string
-                  name:
-                    description: Name is the name of the target resource.
-                    minLength: 1
-                    type: string
-                required:
-                - kind
-                - name
-                type: object
+              vpcAttachmentRef:
+                description: |-
+                  VPCAttachmentRef is the opaque identifier of the target
+                  VPCAttachment this policy applies to. Like VPCRef, this is an opaque
+                  string reference validated by the admission webhook, not by this API.
+                minLength: 1
+                type: string
+              vpcRef:
+                description: |-
+                  VPCRef is the opaque identifier of the target VPC this policy applies
+                  to. This repo does not own the VPC API and does not validate the
+                  identifier beyond non-emptiness; the admission webhook of the
+                  consuming controller is responsible for verifying the requester is
+                  authorized for this VPC before the policy is accepted.
+                minLength: 1
+                type: string
             required:
-            - targetRef
+            - vpcAttachmentRef
+            - vpcRef
             type: object
           status:
-            description: NetworkGatewayStatus defines the observed state of a NetworkGateway.
+            description: |-
+              NetworkEgressPolicyStatus defines the observed state of a
+              NetworkEgressPolicy.
             properties:
               conditions:
-                description: Conditions contains the standard conditions for this
-                  resource.
+                description: |-
+                  Conditions contains the standard conditions for this resource,
+                  including Accepted (see AcceptedReasonOwnershipVerified /
+                  AcceptedReasonOwnershipDenied in rule_types.go, reused as-is here).
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -156,42 +165,11 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
-              egressAddress:
-                description: |-
-                  EgressAddress is this gateway node's own publicly-routable IPv6
-                  address, used as the masquerade SNAT source for every egress flow
-                  this node translates on behalf of tenant VPC backends reaching the
-                  internet. Unlike SRv6Address (reachable only within the SRv6 fabric),
-                  this address must additionally be reachable from the public internet
-                  — an eBGP/uplink-peering concern outside this API. Operator-supplied
-                  via GALACTIC_GATEWAY_EGRESS_ADDRESS; there is no in-cluster
-                  derivation mechanism yet, the same gap SRv6Address itself has today.
-                  A gateway node not offering egress leaves this field empty.
-                type: string
-                x-kubernetes-validations:
-                - message: egressAddress must be a valid IPv6 address
-                  rule: self == '' || isIP(self)
               observedGeneration:
                 description: ObservedGeneration is the .metadata.generation this status
                   was computed from.
                 format: int64
                 type: integer
-              sRv6Address:
-                description: |-
-                  SRv6Address is this gateway node's own SRv6-reachable IPv6 address,
-                  used as the Full-NAT SNAT source for every ingress flow this node
-                  translates. Backend Pods' replies are naturally routed back to it
-                  over the ordinary SRv6 fabric (the same mechanism that routes any
-                  other node's traffic), where this node's XDP program decapsulates
-                  and un-NATs them using its own conn_table — there is no separate
-                  tunnel endpoint or overlay device to publish. Populated by the
-                  engine once it has computed the address (a uFMT 48+16 uSID over this
-                  node's own BGPRouter locator/node-ID, at the reserved Argument 0)
-                  and advertised it into BGP.
-                type: string
-                x-kubernetes-validations:
-                - message: sRv6Address must be a valid IPv6 address
-                  rule: self == '' || isIP(self)
             type: object
         type: object
     served: true

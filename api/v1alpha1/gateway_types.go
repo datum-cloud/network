@@ -29,6 +29,7 @@ import (
 // +kubebuilder:resource:scope=Namespaced,shortName=netgw
 // +kubebuilder:printcolumn:name="TARGET",type="string",JSONPath=".spec.targetRef.name"
 // +kubebuilder:printcolumn:name="SRV6-ADDRESS",type="string",JSONPath=".status.sRv6Address"
+// +kubebuilder:printcolumn:name="EGRESS-ADDRESS",type="string",JSONPath=".status.egressAddress"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 type NetworkGateway struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -64,6 +65,19 @@ type NetworkGatewayStatus struct {
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="self == '' || isIP(self)",message="sRv6Address must be a valid IPv6 address"
 	SRv6Address string `json:"sRv6Address,omitempty"`
+
+	// EgressAddress is this gateway node's own publicly-routable IPv6
+	// address, used as the masquerade SNAT source for every egress flow
+	// this node translates on behalf of tenant VPC backends reaching the
+	// internet. Unlike SRv6Address (reachable only within the SRv6 fabric),
+	// this address must additionally be reachable from the public internet
+	// — an eBGP/uplink-peering concern outside this API. Operator-supplied
+	// via GALACTIC_GATEWAY_EGRESS_ADDRESS; there is no in-cluster
+	// derivation mechanism yet, the same gap SRv6Address itself has today.
+	// A gateway node not offering egress leaves this field empty.
+	// +optional
+	// +kubebuilder:validation:XValidation:rule="self == '' || isIP(self)",message="egressAddress must be a valid IPv6 address"
+	EgressAddress string `json:"egressAddress,omitempty"`
 
 	// Conditions contains the standard conditions for this resource.
 	//
