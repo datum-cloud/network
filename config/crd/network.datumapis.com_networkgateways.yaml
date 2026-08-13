@@ -26,6 +26,9 @@ spec:
     - jsonPath: .status.egressAddress
       name: EGRESS-ADDRESS
       type: string
+    - jsonPath: .status.egressSID
+      name: EGRESS-SID
+      type: string
     - jsonPath: .metadata.creationTimestamp
       name: AGE
       type: date
@@ -170,6 +173,24 @@ spec:
                 type: string
                 x-kubernetes-validations:
                 - message: egressAddress must be a valid IPv6 address
+                  rule: self == '' || isIP(self)
+              egressSID:
+                description: |-
+                  EgressSID is this gateway node's own egress_sid uSID *locator*
+                  (design plan §3.1) — the reserved Argument range's Block+Node-ID
+                  portion tenant VRF default routes encapsulate toward. Unlike
+                  EgressAddress (a plain, publicly-routable address, no uSID
+                  structure), this is a real uSID: other nodes need a kernel route to
+                  it before they can install a SEG6 encap route naming it as the
+                  destination (the same reason SRv6Address is advertised into BGP),
+                  so this is published and advertised the same way SRv6Address/
+                  EgressAddress already are. Operator-supplied via
+                  GALACTIC_GATEWAY_EGRESS_SID; a gateway node not offering egress
+                  leaves this field empty, always paired with EgressAddress (both
+                  set, or neither).
+                type: string
+                x-kubernetes-validations:
+                - message: egressSID must be a valid IPv6 address
                   rule: self == '' || isIP(self)
               observedGeneration:
                 description: ObservedGeneration is the .metadata.generation this status

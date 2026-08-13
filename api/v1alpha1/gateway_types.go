@@ -30,6 +30,7 @@ import (
 // +kubebuilder:printcolumn:name="TARGET",type="string",JSONPath=".spec.targetRef.name"
 // +kubebuilder:printcolumn:name="SRV6-ADDRESS",type="string",JSONPath=".status.sRv6Address"
 // +kubebuilder:printcolumn:name="EGRESS-ADDRESS",type="string",JSONPath=".status.egressAddress"
+// +kubebuilder:printcolumn:name="EGRESS-SID",type="string",JSONPath=".status.egressSID"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 type NetworkGateway struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -78,6 +79,22 @@ type NetworkGatewayStatus struct {
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="self == '' || isIP(self)",message="egressAddress must be a valid IPv6 address"
 	EgressAddress string `json:"egressAddress,omitempty"`
+
+	// EgressSID is this gateway node's own egress_sid uSID *locator*
+	// (design plan §3.1) — the reserved Argument range's Block+Node-ID
+	// portion tenant VRF default routes encapsulate toward. Unlike
+	// EgressAddress (a plain, publicly-routable address, no uSID
+	// structure), this is a real uSID: other nodes need a kernel route to
+	// it before they can install a SEG6 encap route naming it as the
+	// destination (the same reason SRv6Address is advertised into BGP),
+	// so this is published and advertised the same way SRv6Address/
+	// EgressAddress already are. Operator-supplied via
+	// GALACTIC_GATEWAY_EGRESS_SID; a gateway node not offering egress
+	// leaves this field empty, always paired with EgressAddress (both
+	// set, or neither).
+	// +optional
+	// +kubebuilder:validation:XValidation:rule="self == '' || isIP(self)",message="egressSID must be a valid IPv6 address"
+	EgressSID string `json:"egressSID,omitempty"`
 
 	// Conditions contains the standard conditions for this resource.
 	//

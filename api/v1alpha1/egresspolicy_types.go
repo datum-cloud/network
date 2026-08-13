@@ -34,6 +34,7 @@ import (
 // +kubebuilder:resource:scope=Namespaced,shortName=netegress
 // +kubebuilder:printcolumn:name="VPC",type="string",JSONPath=".spec.vpcRef"
 // +kubebuilder:printcolumn:name="VPC-ATTACHMENT",type="string",JSONPath=".spec.vpcAttachmentRef"
+// +kubebuilder:printcolumn:name="ASSIGNED-NODE",type="string",JSONPath=".status.assignedGatewayNode"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 type NetworkEgressPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -69,6 +70,25 @@ type NetworkEgressPolicyStatus struct {
 	// ObservedGeneration is the .metadata.generation this status was computed from.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// AssignedGatewayNode is the name of the NetworkGateway-backed gateway
+	// node this policy's tenant should route egress traffic through,
+	// mirroring NetworkRule's own status.primaryNode field and computed
+	// the same way: assigned_node = hash(vpcRef) % <gateway node count>
+	// (design plan §4.5 — a tenant's egress node and its primary ingress
+	// node are the same node, by design, so both fields are computed by
+	// the identical AssignPrimaryNode function). The controller consuming
+	// this CRD sets this field exactly once, at creation.
+	//
+	// This value must never be silently recomputed by a reconciler once
+	// set, for the exact same reason NetworkRuleStatus.PrimaryNode's own
+	// doc comment gives: recomputing it on a later reconcile can flip
+	// which node a tenant's egress traffic routes through and cause an
+	// avoidable traffic flap; a reconciler that observes a stale or
+	// removed node here must surface that via a condition instead of
+	// overwriting the value.
+	// +optional
+	AssignedGatewayNode string `json:"assignedGatewayNode,omitempty"`
 
 	// Conditions contains the standard conditions for this resource,
 	// including Accepted (see AcceptedReasonOwnershipVerified /
