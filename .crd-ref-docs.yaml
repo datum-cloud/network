@@ -10,6 +10,9 @@ processor:
     - "NetworkRuleProtocol"
     - "NetworkRuleSpec"
     - "NetworkRuleStatus"
+    - "NetworkEgressPolicy"
+    - "NetworkEgressPolicySpec"
+    - "NetworkEgressPolicyStatus"
   ignoreFields: []
 
 render:

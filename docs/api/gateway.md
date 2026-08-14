@@ -9,9 +9,91 @@
 Package v1alpha1 contains API Schema definitions for the network.datumapis.com/v1alpha1 API group.
 
 ### Resource Types
+- [NetworkEgressPolicy](#networkegresspolicy)
 - [NetworkGateway](#networkgateway)
 - [NetworkRule](#networkrule)
 
+
+
+#### NetworkEgressPolicy
+
+
+
+NetworkEgressPolicy enables internet egress for a single tenant
+VPC/VPCAttachment, served by the shared hyperconverged gateway engine's
+masquerade (SNAT/PAT) datapath. Unlike NetworkRule, it carries no
+VIP/backend/port: egress is on or off for a (vpcRef, vpcAttachmentRef)
+pair, existence-implies-enabled, not a per-flow rule — because the
+destination of an egress flow is an arbitrary internet address, not a
+pre-configured backend list.
+
+It is namespaced (deployed to galactic-system) and tenant-writable; like
+NetworkRule, vpcRef/vpcAttachmentRef are opaque string identifiers because
+the VPC API is owned by a separate companion operator, not this repo. An
+admission webhook (implemented by the consuming controller) must verify
+the requester is authorized for vpcRef/vpcAttachmentRef before a policy is
+accepted — see the Accepted condition.
+
+Presence of an accepted NetworkEgressPolicy resolves only *enablement*
+(should this tenant reach the egress datapath at all) — a routing-layer
+decision (does the tenant's VRF have a default route toward the shared
+egress_sid locator), not a per-packet datapath lookup. *Isolation*
+(preventing two tenants with colliding ULA source addresses from
+colliding in the egress connection table) is a separate, datapath-level
+concern resolved by tagging each flow with the tenant/VRF identifier
+carried in the egress_sid locator's own Argument bits, not by anything in
+this spec.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `network.datumapis.com/v1alpha1` | | |
+| `kind` _string_ | `NetworkEgressPolicy` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[NetworkEgressPolicySpec](#networkegresspolicyspec)_ |  |  |  |
+| `status` _[NetworkEgressPolicyStatus](#networkegresspolicystatus)_ |  |  |  |
+
+
+#### NetworkEgressPolicySpec
+
+
+
+NetworkEgressPolicySpec defines the desired egress-enablement state for a
+tenant VPC/VPCAttachment.
+
+
+
+_Appears in:_
+- [NetworkEgressPolicy](#networkegresspolicy)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `vpcRef` _string_ | VPCRef is the opaque identifier of the target VPC this policy applies<br />to. This repo does not own the VPC API and does not validate the<br />identifier beyond non-emptiness; the admission webhook of the<br />consuming controller is responsible for verifying the requester is<br />authorized for this VPC before the policy is accepted. |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `vpcAttachmentRef` _string_ | VPCAttachmentRef is the opaque identifier of the target<br />VPCAttachment this policy applies to. Like VPCRef, this is an opaque<br />string reference validated by the admission webhook, not by this API. |  | MinLength: 1 <br />Required: \{\} <br /> |
+
+
+#### NetworkEgressPolicyStatus
+
+
+
+NetworkEgressPolicyStatus defines the observed state of a
+NetworkEgressPolicy.
+
+
+
+_Appears in:_
+- [NetworkEgressPolicy](#networkegresspolicy)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `observedGeneration` _integer_ | ObservedGeneration is the .metadata.generation this status was computed from. |  |  |
+| `assignedGatewayNode` _string_ | AssignedGatewayNode is the name of the NetworkGateway-backed gateway<br />node this policy's tenant should route egress traffic through,<br />mirroring NetworkRule's own status.primaryNode field and computed<br />the same way: assigned_node = hash(vpcRef) % <gateway node count><br />(design plan §4.5 — a tenant's egress node and its primary ingress<br />node are the same node, by design, so both fields are computed by<br />the identical AssignPrimaryNode function). The controller consuming<br />this CRD sets this field exactly once, at creation.<br />This value must never be silently recomputed by a reconciler once<br />set, for the exact same reason NetworkRuleStatus.PrimaryNode's own<br />doc comment gives: recomputing it on a later reconcile can flip<br />which node a tenant's egress traffic routes through and cause an<br />avoidable traffic flap; a reconciler that observes a stale or<br />removed node here must surface that via a condition instead of<br />overwriting the value. |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource,<br />including Accepted (see AcceptedReasonOwnershipVerified /<br />AcceptedReasonOwnershipDenied in rule_types.go, reused as-is here). |  |  |
 
 
 #### NetworkGateway
@@ -84,6 +166,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `observedGeneration` _integer_ | ObservedGeneration is the .metadata.generation this status was computed from. |  |  |
 | `sRv6Address` _string_ | SRv6Address is this gateway node's own SRv6-reachable IPv6 address,<br />used as the Full-NAT SNAT source for every ingress flow this node<br />translates. Backend Pods' replies are naturally routed back to it<br />over the ordinary SRv6 fabric (the same mechanism that routes any<br />other node's traffic), where this node's XDP program decapsulates<br />and un-NATs them using its own conn_table — there is no separate<br />tunnel endpoint or overlay device to publish. Populated by the<br />engine once it has computed the address (a uFMT 48+16 uSID over this<br />node's own BGPRouter locator/node-ID, at the reserved Argument 0)<br />and advertised it into BGP. |  |  |
+| `egressAddress` _string_ | EgressAddress is this gateway node's own publicly-routable IPv6<br />address, used as the masquerade SNAT source for every egress flow<br />this node translates on behalf of tenant VPC backends reaching the<br />internet. Unlike SRv6Address (reachable only within the SRv6 fabric),<br />this address must additionally be reachable from the public internet<br />— an eBGP/uplink-peering concern outside this API. Operator-supplied<br />via GALACTIC_GATEWAY_EGRESS_ADDRESS; there is no in-cluster<br />derivation mechanism yet, the same gap SRv6Address itself has today.<br />A gateway node not offering egress leaves this field empty. |  |  |
+| `egressSID` _string_ | EgressSID is this gateway node's own egress_sid uSID *locator*<br />(design plan §3.1) — the reserved Argument range's Block+Node-ID<br />portion tenant VRF default routes encapsulate toward. Unlike<br />EgressAddress (a plain, publicly-routable address, no uSID<br />structure), this is a real uSID: other nodes need a kernel route to<br />it before they can install a SEG6 encap route naming it as the<br />destination (the same reason SRv6Address is advertised into BGP),<br />so this is published and advertised the same way SRv6Address/<br />EgressAddress already are. Operator-supplied via<br />GALACTIC_GATEWAY_EGRESS_SID; a gateway node not offering egress<br />leaves this field empty, always paired with EgressAddress (both<br />set, or neither). |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource. |  |  |
 
 
