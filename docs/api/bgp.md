@@ -15,6 +15,8 @@ Package v1alpha1 contains API Schema definitions for the network.datumapis.com/v
 - [BGPPolicy](#bgppolicy)
 - [BGPRouter](#bgprouter)
 - [BGPVRFInstance](#bgpvrfinstance)
+- [NAT66Shard](#nat66shard)
+- [ServiceVIPBinding](#servicevipbinding)
 
 
 
@@ -844,6 +846,7 @@ _Appears in:_
 | `vrfID` _integer_ | VRFID is the 16-bit PoP-local VRF identifier used for RFC 9800 uSID<br />Argument addressing and to derive the RFC 4364 Type 1 Route<br />Distinguisher ("routerID:vrfID"). Unique per (VPC, PoP). Value 0 is<br />reserved. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
 | `importRouteTargets` _[RouteTarget](#routetarget) array_ | ImportRouteTargets is the list of BGP extended community route targets<br />used to import routes into this VRF. |  | MaxItems: 32 <br />MinItems: 1 <br /> |
 | `exportRouteTargets` _[RouteTarget](#routetarget) array_ | ExportRouteTargets is the list of BGP extended community route targets<br />attached to routes exported from this VRF. |  | MaxItems: 32 <br />MinItems: 1 <br /> |
+| `nptv6` _[NPTv6Spec](#nptv6spec)_ | NPTv6 configures stateless RFC 6296 Network Prefix Translation for<br />this VRF: backends presenting an address within ULAPrefix are<br />translated, checksum-neutrally and bidirectionally, to the<br />corresponding address in PublicPrefix. Unset means this VRF's traffic<br />crosses the SRv6 fabric with its own ULA source/destination<br />unmodified — the common case. Keyed by this VRFID, never by address,<br />specifically so two VRFs may configure the identical ULAPrefix (e.g.<br />both using the same private range) without collision — each VRF's<br />mapping is independent, looked up only after this VRF's own identity<br />is already resolved from the SRv6 uSID Argument, never derived from<br />address content alone. |  |  |
 
 
 #### BGPVRFInstanceStatus
@@ -967,6 +970,95 @@ _Appears in:_
 | `warning-only` | MaxPrefixShutdownActionWarningOnly logs a warning but keeps the session up.<br /> |
 | `restart` | MaxPrefixShutdownActionRestart resets the BGP session when the limit is exceeded.<br /> |
 | `shutdown` | MaxPrefixShutdownActionShutdown tears down the BGP session when the limit is exceeded.<br /> |
+
+
+#### NAT66Shard
+
+
+
+NAT66Shard marks a single node as a member of the sharded, stateful NAT66
+egress tier (galactic-nat66) — a component deliberately kept off the
+ingress load-balancer's own consistent-hash ring (see NetworkGateway):
+tenant egress traffic (backend -> arbitrary internet destination) is a
+different traffic pattern from ingress (fixed VIP, fixed backend pool)
+and needs its own placement ring, own per-flow state, and its own
+self-routing return path, entirely independent of any NetworkGateway node.
+
+Every shard owns a dedicated, BGP-advertised public IPv6 address
+(Status.ShardAddress) that a flow's allocated masquerade port lives
+within — so a reply is delivered to the correct shard by ordinary
+unicast SRv6/BGP routing alone, with no hashing or cross-shard lookup on
+the return path at all (the "any node can determine the owning shard from
+the tuple alone" property, satisfied by construction rather than by a
+replicated hash table).
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `network.datumapis.com/v1alpha1` | | |
+| `kind` _string_ | `NAT66Shard` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[NAT66ShardSpec](#nat66shardspec)_ |  |  |  |
+| `status` _[NAT66ShardStatus](#nat66shardstatus)_ |  |  |  |
+
+
+#### NAT66ShardSpec
+
+
+
+NAT66ShardSpec defines the desired state of a NAT66Shard.
+
+
+
+_Appears in:_
+- [NAT66Shard](#nat66shard)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `targetRef` _[TargetRef](#targetref)_ | TargetRef identifies the Node this shard executes on. |  | Required: \{\} <br /> |
+
+
+#### NAT66ShardStatus
+
+
+
+NAT66ShardStatus defines the observed state of a NAT66Shard.
+
+
+
+_Appears in:_
+- [NAT66Shard](#nat66shard)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `observedGeneration` _integer_ | ObservedGeneration is the .metadata.generation this status was computed from. |  |  |
+| `shardAddress` _string_ | ShardAddress is this shard's own dedicated, publicly-routable IPv6<br />address — every masquerade port this shard allocates lives within it,<br />so any node can route a reply to the correct shard using ordinary<br />unicast routing on this address alone, with no per-flow state lookup<br />anywhere but the owning shard itself. Operator-supplied per shard<br />today (no in-cluster derivation mechanism yet — the same gap<br />BGPRouter.Spec.SRv6Locator/NodeID assignment has today). |  |  |
+| `shardSID` _string_ | ShardSID is this shard's own uSID locator — a real SRv6 uSID (unlike<br />ShardAddress, a plain routable address), advertised into BGP the same<br />way any other node-reachability route is (a /128 BGPAdvertisement, no<br />VRFID/Function) so every other node learns a kernel SEG6 route toward<br />it before installing a tenant VRF's default egress route against it. |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource. |  |  |
+
+
+#### NPTv6Spec
+
+
+
+NPTv6Spec is one VRF's stateless RFC 6296 prefix-translation mapping.
+ULAPrefix and PublicPrefix must share the same prefix length — RFC 6296
+translation only ever rewrites the shared prefix, never the host bits.
+
+
+
+_Appears in:_
+- [BGPVRFInstanceSpec](#bgpvrfinstancespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `ulaPrefix` _string_ | ULAPrefix is this VRF's tenant-facing IPv6 ULA prefix (e.g.<br />"fd20:60::/64"), as presented by backends inside the VRF. |  | Required: \{\} <br /> |
+| `publicPrefix` _string_ | PublicPrefix is the externally-routable IPv6 prefix ULAPrefix<br />translates to/from, same prefix length as ULAPrefix. |  | Required: \{\} <br /> |
 
 
 #### NextHopSet
@@ -1229,6 +1321,106 @@ _Appears in:_
 | `both` | SendCommunityTypeBoth sends both standard and extended communities.<br /> |
 
 
+#### ServiceVIPBinding
+
+
+
+ServiceVIPBinding drives one worker node's backend-side half of the
+DSR/Maglev load-balancer datapath: it tells the node which service VIP a
+specific local backend must be reachable on, so the backend can reply to
+clients directly (the "Direct Server Return" this design depends on —
+see NetworkGateway's doc comment). Written by the same controller that
+already resolves a NetworkRule's backends to worker nodes/SRv6
+information (galactic-gateway's usidresolver.go), one object per
+(node, VIP, backend) triple; consumed by a per-node reconciler running
+inside galactic-router's tenant role.
+
+EgressKind decides which of two entirely different backend mechanisms
+this object drives, mirroring the same veth/tap fork the SRv6 uSID decap
+datapath already has (internal/plumbing/ebpf/usidmap's egress_kind field):
+
+  - veth (container backend): the node binds VIPAddress on its own
+    galactic-vip0 dummy interface and the backend answers on it from
+    inside its own pod netns — internal/plumbing/vip's Bind/Unbind/Verify.
+  - tap (VM backend): there is no guest-side configuration capability in
+    this repo by design (internal/cnitap's own doc comment) — instead the
+    node transparently substitutes VIPAddress:Port for
+    BackendAddress:BackendPort at the SRv6 uSID TC-BPF boundary
+    (usid_ingress's inbound half, a new usid_egress program's outbound
+    half), so the guest OS never needs to know the VIP exists at all.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `network.datumapis.com/v1alpha1` | | |
+| `kind` _string_ | `ServiceVIPBinding` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[ServiceVIPBindingSpec](#servicevipbindingspec)_ |  |  |  |
+| `status` _[ServiceVIPBindingStatus](#servicevipbindingstatus)_ |  |  |  |
+
+
+#### ServiceVIPBindingEgressKind
+
+_Underlying type:_ _string_
+
+ServiceVIPBindingEgressKind mirrors usidmap's EgressKindVeth/EgressKindTap
+constants at the API layer — see ServiceVIPBinding's doc comment.
+
+_Validation:_
+- Enum: [veth tap]
+
+_Appears in:_
+- [ServiceVIPBindingSpec](#servicevipbindingspec)
+
+| Field | Description |
+| --- | --- |
+| `veth` | ServiceVIPBindingEgressKindVeth selects the netns-bind mechanism.<br /> |
+| `tap` | ServiceVIPBindingEgressKindTap selects the transparent tap-boundary<br />translation mechanism.<br /> |
+
+
+#### ServiceVIPBindingSpec
+
+
+
+ServiceVIPBindingSpec defines the desired VIP binding/translation state.
+
+
+
+_Appears in:_
+- [ServiceVIPBinding](#servicevipbinding)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `targetRef` _[TargetRef](#targetref)_ | TargetRef identifies the Node this binding applies to. |  | Required: \{\} <br /> |
+| `vipAddress` _string_ | VIPAddress is the service VIP the backend must be reachable on. |  | Required: \{\} <br /> |
+| `port` _integer_ | Port is the VIP-facing port traffic arrives on. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
+| `backendAddress` _string_ | BackendAddress is the backend's own real address (its pod-netns<br />address for a veth backend, or its actual guest-facing address for a<br />tap backend). Required only for EgressKindTap, where it is the<br />substitution target; a veth binding's backend answers on VIPAddress<br />itself once bound, so this field is ignored for that kind. |  |  |
+| `backendPort` _integer_ | BackendPort is the backend's own real port, paired with<br />BackendAddress for the tap-translation case. Ignored for veth. |  | Maximum: 65535 <br />Minimum: 1 <br /> |
+| `egressKind` _[ServiceVIPBindingEgressKind](#servicevipbindingegresskind)_ | EgressKind selects which backend mechanism this binding drives. |  | Enum: [veth tap] <br />Required: \{\} <br /> |
+
+
+#### ServiceVIPBindingStatus
+
+
+
+ServiceVIPBindingStatus defines the observed state of a ServiceVIPBinding.
+
+
+
+_Appears in:_
+- [ServiceVIPBinding](#servicevipbinding)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `observedGeneration` _integer_ | ObservedGeneration is the .metadata.generation this status was computed from. |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource,<br />including Bound (set True once internal/plumbing/vip.Verify or the<br />equivalent tap-translation-table check confirms the backend is<br />actually reachable on VIPAddress, not merely that the bind/table-write<br />call itself returned nil). |  |  |
+
+
 #### TargetRef
 
 
@@ -1240,6 +1432,8 @@ Supported values for kind: Node.
 
 _Appears in:_
 - [BGPRouterSpec](#bgprouterspec)
+- [NAT66ShardSpec](#nat66shardspec)
+- [ServiceVIPBindingSpec](#servicevipbindingspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |

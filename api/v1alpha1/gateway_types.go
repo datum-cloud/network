@@ -4,33 +4,29 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// NetworkGateway defines an XDP ingress NAT+LB gateway engine instance bound
-// to a single dedicated gateway-role node. Exactly one NetworkGateway exists
-// per gateway node (spec.targetRef.name is the Kubernetes node name),
-// mirroring the BGPRouter node-scoped root object pattern. NetworkRule
-// resources are assigned to a NetworkGateway via status.primaryNode.
+// NetworkGateway marks a single dedicated gateway-role node as running the
+// Maglev/DSR consistent-hash L4 load-balancer engine. Exactly one
+// NetworkGateway exists per gateway node (spec.targetRef.name is the
+// Kubernetes node name), mirroring the BGPRouter node-scoped root object
+// pattern. NetworkRule resources are served by every NetworkGateway in the
+// namespace equally (anycast — see NetworkRuleStatus's doc comment); this
+// object's only job is to identify which nodes participate at all and
+// surface each node's engine health via Conditions.
 //
-// There is no tunnel overlay in this design (an earlier Geneve-based
-// approach was superseded before this type shipped): the gateway's XDP
-// program does Full-NAT (DNAT the VIP to a backend Pod's address, SNAT the
-// client's source to status.sRv6Address) and pushes an SRv6 uSID outer
-// header addressed to the backend's worker node directly, so return traffic
-// (addressed to status.sRv6Address) arrives back at this same gateway node
-// over the ordinary SRv6 fabric — no compute-node encap agent, no tunnel
-// endpoint to publish. status.sRv6Address is advertised into BGP the same
-// way any workload prefix is (a BGPAdvertisement naming it, /128, Argument
-// 0 — the value PR #740 reserves and forbids registering into any tenant
-// VRF, guaranteeing it never collides with a real tenant's Argument), so
-// every other node learns a real kernel SEG6 route to it for free through
-// the existing EVPN pipeline.
+// This design does no address rewriting on the load-balancing path at all
+// (DSR — Direct Server Return): the gateway's XDP program picks a backend
+// via consistent hashing on the flow's 5-tuple and pushes an SRv6 uSID outer
+// header addressed to the backend's worker node directly, untouched
+// otherwise. The backend node answers the client directly (see
+// ServiceVIPBinding) — reply traffic never re-enters this gateway node, so
+// unlike the Full-NAT design this type originally described, a gateway node
+// has no SNAT source address of its own to publish and nothing analogous to
+// sRv6Address/egressAddress/egressSID belongs on this status anymore.
 //
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Namespaced,shortName=netgw
 // +kubebuilder:printcolumn:name="TARGET",type="string",JSONPath=".spec.targetRef.name"
-// +kubebuilder:printcolumn:name="SRV6-ADDRESS",type="string",JSONPath=".status.sRv6Address"
-// +kubebuilder:printcolumn:name="EGRESS-ADDRESS",type="string",JSONPath=".status.egressAddress"
-// +kubebuilder:printcolumn:name="EGRESS-SID",type="string",JSONPath=".status.egressSID"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 type NetworkGateway struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -52,49 +48,6 @@ type NetworkGatewayStatus struct {
 	// ObservedGeneration is the .metadata.generation this status was computed from.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
-
-	// SRv6Address is this gateway node's own SRv6-reachable IPv6 address,
-	// used as the Full-NAT SNAT source for every ingress flow this node
-	// translates. Backend Pods' replies are naturally routed back to it
-	// over the ordinary SRv6 fabric (the same mechanism that routes any
-	// other node's traffic), where this node's XDP program decapsulates
-	// and un-NATs them using its own conn_table — there is no separate
-	// tunnel endpoint or overlay device to publish. Populated by the
-	// engine once it has computed the address (a uFMT 48+16 uSID over this
-	// node's own BGPRouter locator/node-ID, at the reserved Argument 0)
-	// and advertised it into BGP.
-	// +optional
-	// +kubebuilder:validation:XValidation:rule="self == '' || isIP(self)",message="sRv6Address must be a valid IPv6 address"
-	SRv6Address string `json:"sRv6Address,omitempty"`
-
-	// EgressAddress is this gateway node's own publicly-routable IPv6
-	// address, used as the masquerade SNAT source for every egress flow
-	// this node translates on behalf of tenant VPC backends reaching the
-	// internet. Unlike SRv6Address (reachable only within the SRv6 fabric),
-	// this address must additionally be reachable from the public internet
-	// — an eBGP/uplink-peering concern outside this API. Operator-supplied
-	// via GALACTIC_GATEWAY_EGRESS_ADDRESS; there is no in-cluster
-	// derivation mechanism yet, the same gap SRv6Address itself has today.
-	// A gateway node not offering egress leaves this field empty.
-	// +optional
-	// +kubebuilder:validation:XValidation:rule="self == '' || isIP(self)",message="egressAddress must be a valid IPv6 address"
-	EgressAddress string `json:"egressAddress,omitempty"`
-
-	// EgressSID is this gateway node's own egress_sid uSID *locator*
-	// (design plan §3.1) — the reserved Argument range's Block+Node-ID
-	// portion tenant VRF default routes encapsulate toward. Unlike
-	// EgressAddress (a plain, publicly-routable address, no uSID
-	// structure), this is a real uSID: other nodes need a kernel route to
-	// it before they can install a SEG6 encap route naming it as the
-	// destination (the same reason SRv6Address is advertised into BGP),
-	// so this is published and advertised the same way SRv6Address/
-	// EgressAddress already are. Operator-supplied via
-	// GALACTIC_GATEWAY_EGRESS_SID; a gateway node not offering egress
-	// leaves this field empty, always paired with EgressAddress (both
-	// set, or neither).
-	// +optional
-	// +kubebuilder:validation:XValidation:rule="self == '' || isIP(self)",message="egressSID must be a valid IPv6 address"
-	EgressSID string `json:"egressSID,omitempty"`
 
 	// Conditions contains the standard conditions for this resource.
 	//

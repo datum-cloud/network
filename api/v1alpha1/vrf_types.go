@@ -47,6 +47,41 @@ type BGPVRFInstanceSpec struct {
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=32
 	ExportRouteTargets []RouteTarget `json:"exportRouteTargets"`
+
+	// NPTv6 configures stateless RFC 6296 Network Prefix Translation for
+	// this VRF: backends presenting an address within ULAPrefix are
+	// translated, checksum-neutrally and bidirectionally, to the
+	// corresponding address in PublicPrefix. Unset means this VRF's traffic
+	// crosses the SRv6 fabric with its own ULA source/destination
+	// unmodified — the common case. Keyed by this VRFID, never by address,
+	// specifically so two VRFs may configure the identical ULAPrefix (e.g.
+	// both using the same private range) without collision — each VRF's
+	// mapping is independent, looked up only after this VRF's own identity
+	// is already resolved from the SRv6 uSID Argument, never derived from
+	// address content alone.
+	// +optional
+	NPTv6 *NPTv6Spec `json:"nptv6,omitempty"`
+}
+
+// NPTv6Spec is one VRF's stateless RFC 6296 prefix-translation mapping.
+// ULAPrefix and PublicPrefix must share the same prefix length — RFC 6296
+// translation only ever rewrites the shared prefix, never the host bits.
+//
+// +kubebuilder:validation:XValidation:rule="self.ulaPrefix.split('/')[1] == self.publicPrefix.split('/')[1]",message="ulaPrefix and publicPrefix must share the same prefix length"
+type NPTv6Spec struct {
+	// ULAPrefix is this VRF's tenant-facing IPv6 ULA prefix (e.g.
+	// "fd20:60::/64"), as presented by backends inside the VRF.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:XValidation:rule="isCIDR(self)",message="ulaPrefix must be a valid CIDR"
+	// +kubebuilder:validation:XValidation:rule="self.contains(':')",message="ulaPrefix must be an IPv6 CIDR"
+	ULAPrefix string `json:"ulaPrefix"`
+
+	// PublicPrefix is the externally-routable IPv6 prefix ULAPrefix
+	// translates to/from, same prefix length as ULAPrefix.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:XValidation:rule="isCIDR(self)",message="publicPrefix must be a valid CIDR"
+	// +kubebuilder:validation:XValidation:rule="self.contains(':')",message="publicPrefix must be an IPv6 CIDR"
+	PublicPrefix string `json:"publicPrefix"`
 }
 
 // RouteTarget is a BGP extended community in "ASN:NN" or "IP:NN" format.

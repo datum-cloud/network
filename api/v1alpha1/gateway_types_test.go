@@ -17,9 +17,6 @@ func newTestGateway() *NetworkGateway {
 		Spec: NetworkGatewaySpec{
 			TargetRef: TargetRef{Kind: "Node", Name: "gw-node-a"},
 		},
-		Status: NetworkGatewayStatus{
-			SRv6Address: "2001:db8:1::1",
-		},
 	}
 }
 
@@ -30,14 +27,10 @@ func TestNetworkGatewayDeepCopy(t *testing.T) {
 	dup := orig.DeepCopy()
 
 	dup.Spec.TargetRef.Name = "gw-node-b"
-	dup.Status.SRv6Address = "2001:db8:1::2"
 	dup.Status.Conditions = append(dup.Status.Conditions, metav1.Condition{Type: ConditionTypeReady})
 
 	if orig.Spec.TargetRef.Name != "gw-node-a" {
 		t.Errorf("TargetRef.Name mutated: got %q", orig.Spec.TargetRef.Name)
-	}
-	if orig.Status.SRv6Address != "2001:db8:1::1" {
-		t.Errorf("SRv6Address mutated: got %q", orig.Status.SRv6Address)
 	}
 	if len(orig.Status.Conditions) != 0 {
 		t.Errorf("Conditions mutated: got %v", orig.Status.Conditions)
@@ -73,9 +66,6 @@ func TestNetworkGatewayJSONRoundTrip(t *testing.T) {
 	if got.Spec.TargetRef != orig.Spec.TargetRef {
 		t.Errorf("TargetRef: got %+v, want %+v", got.Spec.TargetRef, orig.Spec.TargetRef)
 	}
-	if got.Status.SRv6Address != orig.Status.SRv6Address {
-		t.Errorf("SRv6Address: got %q, want %q", got.Status.SRv6Address, orig.Status.SRv6Address)
-	}
 	if len(got.Status.Conditions) != 1 {
 		t.Fatalf("Conditions len: got %d, want 1", len(got.Status.Conditions))
 	}
@@ -95,8 +85,10 @@ func TestNetworkGatewayListDeepCopy(t *testing.T) {
 	}
 }
 
-// TestNetworkGatewayFieldNames verifies the JSON keys for spec/status fields
-// match the CRD schema.
+// TestNetworkGatewayFieldNames verifies the JSON keys for spec fields match
+// the CRD schema, and that no per-node SNAT-source fields survive from the
+// superseded Full-NAT design — a DSR gateway node rewrites nothing, so it
+// has no address of its own to publish here.
 func TestNetworkGatewayFieldNames(t *testing.T) {
 	orig := newTestGateway()
 
@@ -118,11 +110,11 @@ func TestNetworkGatewayFieldNames(t *testing.T) {
 		t.Errorf("expected spec.targetRef field, got %v", spec)
 	}
 
-	status, ok := m["status"].(map[string]any)
-	if !ok {
-		t.Fatalf("status not found or wrong type: %v", m["status"])
-	}
-	if v, ok := status["sRv6Address"]; !ok || v != "2001:db8:1::1" {
-		t.Errorf("expected status.sRv6Address=%q, got %v", "2001:db8:1::1", status["sRv6Address"])
+	if status, ok := m["status"].(map[string]any); ok {
+		for _, removed := range []string{"sRv6Address", "egressAddress", "egressSID"} {
+			if _, ok := status[removed]; ok {
+				t.Errorf("unexpected superseded field %q present in status: %v", removed, status)
+			}
+		}
 	}
 }

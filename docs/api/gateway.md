@@ -9,9 +9,83 @@
 Package v1alpha1 contains API Schema definitions for the network.datumapis.com/v1alpha1 API group.
 
 ### Resource Types
+- [NAT66Shard](#nat66shard)
 - [NetworkEgressPolicy](#networkegresspolicy)
 - [NetworkGateway](#networkgateway)
 - [NetworkRule](#networkrule)
+- [ServiceVIPBinding](#servicevipbinding)
+
+
+
+#### NAT66Shard
+
+
+
+NAT66Shard marks a single node as a member of the sharded, stateful NAT66
+egress tier (galactic-nat66) — a component deliberately kept off the
+ingress load-balancer's own consistent-hash ring (see NetworkGateway):
+tenant egress traffic (backend -> arbitrary internet destination) is a
+different traffic pattern from ingress (fixed VIP, fixed backend pool)
+and needs its own placement ring, own per-flow state, and its own
+self-routing return path, entirely independent of any NetworkGateway node.
+
+Every shard owns a dedicated, BGP-advertised public IPv6 address
+(Status.ShardAddress) that a flow's allocated masquerade port lives
+within — so a reply is delivered to the correct shard by ordinary
+unicast SRv6/BGP routing alone, with no hashing or cross-shard lookup on
+the return path at all (the "any node can determine the owning shard from
+the tuple alone" property, satisfied by construction rather than by a
+replicated hash table).
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `network.datumapis.com/v1alpha1` | | |
+| `kind` _string_ | `NAT66Shard` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[NAT66ShardSpec](#nat66shardspec)_ |  |  |  |
+| `status` _[NAT66ShardStatus](#nat66shardstatus)_ |  |  |  |
+
+
+#### NAT66ShardSpec
+
+
+
+NAT66ShardSpec defines the desired state of a NAT66Shard.
+
+
+
+_Appears in:_
+- [NAT66Shard](#nat66shard)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `targetRef` _[TargetRef](#targetref)_ | TargetRef identifies the Node this shard executes on. |  | Required: \{\} <br /> |
+
+
+#### NAT66ShardStatus
+
+
+
+NAT66ShardStatus defines the observed state of a NAT66Shard.
+
+
+
+_Appears in:_
+- [NAT66Shard](#nat66shard)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `observedGeneration` _integer_ | ObservedGeneration is the .metadata.generation this status was computed from. |  |  |
+| `shardAddress` _string_ | ShardAddress is this shard's own dedicated, publicly-routable IPv6<br />address — every masquerade port this shard allocates lives within it,<br />so any node can route a reply to the correct shard using ordinary<br />unicast routing on this address alone, with no per-flow state lookup<br />anywhere but the owning shard itself. Operator-supplied per shard<br />today (no in-cluster derivation mechanism yet — the same gap<br />BGPRouter.Spec.SRv6Locator/NodeID assignment has today). |  |  |
+| `shardSID` _string_ | ShardSID is this shard's own uSID locator — a real SRv6 uSID (unlike<br />ShardAddress, a plain routable address), advertised into BGP the same<br />way any other node-reachability route is (a /128 BGPAdvertisement, no<br />VRFID/Function) so every other node learns a kernel SEG6 route toward<br />it before installing a tenant VRF's default egress route against it. |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource. |  |  |
+
 
 
 
@@ -20,12 +94,12 @@ Package v1alpha1 contains API Schema definitions for the network.datumapis.com/v
 
 
 NetworkEgressPolicy enables internet egress for a single tenant
-VPC/VPCAttachment, served by the shared hyperconverged gateway engine's
-masquerade (SNAT/PAT) datapath. Unlike NetworkRule, it carries no
-VIP/backend/port: egress is on or off for a (vpcRef, vpcAttachmentRef)
-pair, existence-implies-enabled, not a per-flow rule — because the
-destination of an egress flow is an arbitrary internet address, not a
-pre-configured backend list.
+VPC/VPCAttachment, served by the sharded, stateful galactic-nat66 tier
+(see NAT66Shard). Unlike NetworkRule, it carries no VIP/backend/port:
+egress is on or off for a (vpcRef, vpcAttachmentRef) pair,
+existence-implies-enabled, not a per-flow rule — because the destination
+of an egress flow is an arbitrary internet address, not a pre-configured
+backend list.
 
 It is namespaced (deployed to galactic-system) and tenant-writable; like
 NetworkRule, vpcRef/vpcAttachmentRef are opaque string identifiers because
@@ -35,14 +109,16 @@ the requester is authorized for vpcRef/vpcAttachmentRef before a policy is
 accepted — see the Accepted condition.
 
 Presence of an accepted NetworkEgressPolicy resolves only *enablement*
-(should this tenant reach the egress datapath at all) — a routing-layer
-decision (does the tenant's VRF have a default route toward the shared
-egress_sid locator), not a per-packet datapath lookup. *Isolation*
-(preventing two tenants with colliding ULA source addresses from
-colliding in the egress connection table) is a separate, datapath-level
-concern resolved by tagging each flow with the tenant/VRF identifier
-carried in the egress_sid locator's own Argument bits, not by anything in
-this spec.
+(should this tenant's VRF get a default route toward the shared NAT66
+tier at all) — unlike this type's original design (superseded), there is
+no single "assigned gateway node" to compute or pin: any NAT66Shard may
+serve any tenant's flow, chosen by the shard-placement consistent-hash
+ring (internal/maglev, keyed on (tenant VRFID, backend, destination) —
+see NAT66Shard's doc comment), not by a per-tenant node assignment stored
+here. *Isolation* (preventing two tenants with colliding ULA source
+addresses from colliding in the egress connection table) is a separate,
+datapath-level concern resolved by tagging each flow with the VRFID
+carried in the tenant's own SRv6 Argument, not by anything in this spec.
 
 
 
@@ -92,7 +168,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `observedGeneration` _integer_ | ObservedGeneration is the .metadata.generation this status was computed from. |  |  |
-| `assignedGatewayNode` _string_ | AssignedGatewayNode is the name of the NetworkGateway-backed gateway<br />node this policy's tenant should route egress traffic through,<br />mirroring NetworkRule's own status.primaryNode field and computed<br />the same way: assigned_node = hash(vpcRef) % <gateway node count><br />(design plan §4.5 — a tenant's egress node and its primary ingress<br />node are the same node, by design, so both fields are computed by<br />the identical AssignPrimaryNode function). The controller consuming<br />this CRD sets this field exactly once, at creation.<br />This value must never be silently recomputed by a reconciler once<br />set, for the exact same reason NetworkRuleStatus.PrimaryNode's own<br />doc comment gives: recomputing it on a later reconcile can flip<br />which node a tenant's egress traffic routes through and cause an<br />avoidable traffic flap; a reconciler that observes a stale or<br />removed node here must surface that via a condition instead of<br />overwriting the value. |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource,<br />including Accepted (see AcceptedReasonOwnershipVerified /<br />AcceptedReasonOwnershipDenied in rule_types.go, reused as-is here). |  |  |
 
 
@@ -100,25 +175,24 @@ _Appears in:_
 
 
 
-NetworkGateway defines an XDP ingress NAT+LB gateway engine instance bound
-to a single dedicated gateway-role node. Exactly one NetworkGateway exists
-per gateway node (spec.targetRef.name is the Kubernetes node name),
-mirroring the BGPRouter node-scoped root object pattern. NetworkRule
-resources are assigned to a NetworkGateway via status.primaryNode.
+NetworkGateway marks a single dedicated gateway-role node as running the
+Maglev/DSR consistent-hash L4 load-balancer engine. Exactly one
+NetworkGateway exists per gateway node (spec.targetRef.name is the
+Kubernetes node name), mirroring the BGPRouter node-scoped root object
+pattern. NetworkRule resources are served by every NetworkGateway in the
+namespace equally (anycast — see NetworkRuleStatus's doc comment); this
+object's only job is to identify which nodes participate at all and
+surface each node's engine health via Conditions.
 
-There is no tunnel overlay in this design (an earlier Geneve-based
-approach was superseded before this type shipped): the gateway's XDP
-program does Full-NAT (DNAT the VIP to a backend Pod's address, SNAT the
-client's source to status.sRv6Address) and pushes an SRv6 uSID outer
-header addressed to the backend's worker node directly, so return traffic
-(addressed to status.sRv6Address) arrives back at this same gateway node
-over the ordinary SRv6 fabric — no compute-node encap agent, no tunnel
-endpoint to publish. status.sRv6Address is advertised into BGP the same
-way any workload prefix is (a BGPAdvertisement naming it, /128, Argument
-0 — the value PR #740 reserves and forbids registering into any tenant
-VRF, guaranteeing it never collides with a real tenant's Argument), so
-every other node learns a real kernel SEG6 route to it for free through
-the existing EVPN pipeline.
+This design does no address rewriting on the load-balancing path at all
+(DSR — Direct Server Return): the gateway's XDP program picks a backend
+via consistent hashing on the flow's 5-tuple and pushes an SRv6 uSID outer
+header addressed to the backend's worker node directly, untouched
+otherwise. The backend node answers the client directly (see
+ServiceVIPBinding) — reply traffic never re-enters this gateway node, so
+unlike the Full-NAT design this type originally described, a gateway node
+has no SNAT source address of its own to publish and nothing analogous to
+sRv6Address/egressAddress/egressSID belongs on this status anymore.
 
 
 
@@ -165,9 +239,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `observedGeneration` _integer_ | ObservedGeneration is the .metadata.generation this status was computed from. |  |  |
-| `sRv6Address` _string_ | SRv6Address is this gateway node's own SRv6-reachable IPv6 address,<br />used as the Full-NAT SNAT source for every ingress flow this node<br />translates. Backend Pods' replies are naturally routed back to it<br />over the ordinary SRv6 fabric (the same mechanism that routes any<br />other node's traffic), where this node's XDP program decapsulates<br />and un-NATs them using its own conn_table — there is no separate<br />tunnel endpoint or overlay device to publish. Populated by the<br />engine once it has computed the address (a uFMT 48+16 uSID over this<br />node's own BGPRouter locator/node-ID, at the reserved Argument 0)<br />and advertised it into BGP. |  |  |
-| `egressAddress` _string_ | EgressAddress is this gateway node's own publicly-routable IPv6<br />address, used as the masquerade SNAT source for every egress flow<br />this node translates on behalf of tenant VPC backends reaching the<br />internet. Unlike SRv6Address (reachable only within the SRv6 fabric),<br />this address must additionally be reachable from the public internet<br />— an eBGP/uplink-peering concern outside this API. Operator-supplied<br />via GALACTIC_GATEWAY_EGRESS_ADDRESS; there is no in-cluster<br />derivation mechanism yet, the same gap SRv6Address itself has today.<br />A gateway node not offering egress leaves this field empty. |  |  |
-| `egressSID` _string_ | EgressSID is this gateway node's own egress_sid uSID *locator*<br />(design plan §3.1) — the reserved Argument range's Block+Node-ID<br />portion tenant VRF default routes encapsulate toward. Unlike<br />EgressAddress (a plain, publicly-routable address, no uSID<br />structure), this is a real uSID: other nodes need a kernel route to<br />it before they can install a SEG6 encap route naming it as the<br />destination (the same reason SRv6Address is advertised into BGP),<br />so this is published and advertised the same way SRv6Address/<br />EgressAddress already are. Operator-supplied via<br />GALACTIC_GATEWAY_EGRESS_SID; a gateway node not offering egress<br />leaves this field empty, always paired with EgressAddress (both<br />set, or neither). |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource. |  |  |
 
 
@@ -175,14 +246,23 @@ _Appears in:_
 
 
 
-NetworkRule defines ingress load-balancing and NAT for a single tenant
-VPC/VPCAttachment, served by the shared hyperconverged gateway engine.
-It is namespaced (deployed to galactic-system) and tenant-writable; the
+NetworkRule defines ingress load-balancing for a single tenant
+VPC/VPCAttachment, served by every NetworkGateway node identically
+(anycast Direct Server Return — see NetworkGateway's doc comment). It is
+namespaced (deployed to galactic-system) and tenant-writable; the
 vpcRef/vpcAttachmentRef fields are opaque string identifiers because the
 VPC API is owned by a separate companion operator, not this repo. An
 admission webhook (implemented by the consuming controller) must verify
 the requester is authorized for vpcRef/vpcAttachmentRef before a rule is
 accepted — see the Accepted condition.
+
+Unlike the earlier Full-NAT design this type originally described, there
+is no primary/secondary gateway node for a rule: every NetworkGateway
+advertises every accepted rule's vipAddresses at equal BGP preference,
+consistent-hashes the same backend list to the same backend for the same
+flow (internal/maglev), and forwards without rewriting anything —
+backend selection never needs a single "owning" node the way Full-NAT's
+SNAT-source model did.
 
 
 
@@ -229,6 +309,7 @@ _Validation:_
 
 _Appears in:_
 - [NetworkRuleSpec](#networkrulespec)
+- [ServiceVIPBindingSpec](#servicevipbindingspec)
 
 | Field | Description |
 | --- | --- |
@@ -272,8 +353,108 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `observedGeneration` _integer_ | ObservedGeneration is the .metadata.generation this status was computed from. |  |  |
-| `primaryNode` _string_ | PrimaryNode is the name of the NetworkGateway-backed gateway node<br />assigned to advertise this rule's VIPAddresses at the preferred BGP<br />local-preference, per the active-active model: primary_node =<br />hash(vpcRef) % <gateway node count>. The controller consuming this<br />CRD sets this field exactly once, at creation.<br />This value must never be silently recomputed by a reconciler once<br />set. Recomputing it on a later reconcile can flip which node is<br />primary for a live VIP and cause an avoidable traffic flap; a<br />reconciler that observes a stale or removed node here must surface<br />that via a condition instead of overwriting the value. |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource. |  |  |
+
+
+#### ServiceVIPBinding
+
+
+
+ServiceVIPBinding drives one worker node's backend-side half of the
+DSR/Maglev load-balancer datapath: it tells the node which service VIP a
+specific local backend must be reachable on, so the backend can reply to
+clients directly (the "Direct Server Return" this design depends on —
+see NetworkGateway's doc comment). Written by the same controller that
+already resolves a NetworkRule's backends to worker nodes/SRv6
+information (galactic-gateway's usidresolver.go), one object per
+(node, VIP, backend) triple; consumed by a per-node reconciler running
+inside galactic-router's tenant role.
+
+EgressKind decides which of two entirely different backend mechanisms
+this object drives, mirroring the same veth/tap fork the SRv6 uSID decap
+datapath already has (internal/plumbing/ebpf/usidmap's egress_kind field):
+
+  - veth (container backend): the node binds VIPAddress on its own
+    galactic-vip0 dummy interface and the backend answers on it from
+    inside its own pod netns — internal/plumbing/vip's Bind/Unbind/Verify.
+  - tap (VM backend): there is no guest-side configuration capability in
+    this repo by design (internal/cnitap's own doc comment) — instead the
+    node transparently substitutes VIPAddress:Port for
+    BackendAddress:BackendPort at the SRv6 uSID TC-BPF boundary
+    (usid_ingress's inbound half, a new usid_egress program's outbound
+    half), so the guest OS never needs to know the VIP exists at all.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `network.datumapis.com/v1alpha1` | | |
+| `kind` _string_ | `ServiceVIPBinding` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[ServiceVIPBindingSpec](#servicevipbindingspec)_ |  |  |  |
+| `status` _[ServiceVIPBindingStatus](#servicevipbindingstatus)_ |  |  |  |
+
+
+#### ServiceVIPBindingEgressKind
+
+_Underlying type:_ _string_
+
+ServiceVIPBindingEgressKind mirrors usidmap's EgressKindVeth/EgressKindTap
+constants at the API layer — see ServiceVIPBinding's doc comment.
+
+_Validation:_
+- Enum: [veth tap]
+
+_Appears in:_
+- [ServiceVIPBindingSpec](#servicevipbindingspec)
+
+| Field | Description |
+| --- | --- |
+| `veth` | ServiceVIPBindingEgressKindVeth selects the netns-bind mechanism.<br /> |
+| `tap` | ServiceVIPBindingEgressKindTap selects the transparent tap-boundary<br />translation mechanism.<br /> |
+
+
+#### ServiceVIPBindingSpec
+
+
+
+ServiceVIPBindingSpec defines the desired VIP binding/translation state.
+
+
+
+_Appears in:_
+- [ServiceVIPBinding](#servicevipbinding)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `targetRef` _[TargetRef](#targetref)_ | TargetRef identifies the Node this binding applies to. |  | Required: \{\} <br /> |
+| `vipAddress` _string_ | VIPAddress is the service VIP the backend must be reachable on. |  | Required: \{\} <br /> |
+| `port` _integer_ | Port is the VIP-facing port traffic arrives on. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
+| `protocol` _[NetworkRuleProtocol](#networkruleprotocol)_ | Protocol is the transport protocol this binding applies to. |  | Enum: [tcp udp] <br />Required: \{\} <br /> |
+| `backendAddress` _string_ | BackendAddress is the backend's own real address (its pod-netns<br />address for a veth backend, or its actual guest-facing address for a<br />tap backend). Required only for EgressKindTap, where it is the<br />substitution target; a veth binding's backend answers on VIPAddress<br />itself once bound, so this field is ignored for that kind. |  |  |
+| `backendPort` _integer_ | BackendPort is the backend's own real port, paired with<br />BackendAddress for the tap-translation case. Ignored for veth. |  | Maximum: 65535 <br />Minimum: 1 <br /> |
+| `egressKind` _[ServiceVIPBindingEgressKind](#servicevipbindingegresskind)_ | EgressKind selects which backend mechanism this binding drives. |  | Enum: [veth tap] <br />Required: \{\} <br /> |
+
+
+#### ServiceVIPBindingStatus
+
+
+
+ServiceVIPBindingStatus defines the observed state of a ServiceVIPBinding.
+
+
+
+_Appears in:_
+- [ServiceVIPBinding](#servicevipbinding)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `observedGeneration` _integer_ | ObservedGeneration is the .metadata.generation this status was computed from. |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource,<br />including Bound (set True once internal/plumbing/vip.Verify or the<br />equivalent tap-translation-table check confirms the backend is<br />actually reachable on VIPAddress, not merely that the bind/table-write<br />call itself returned nil). |  |  |
 
 
 #### TargetRef
@@ -286,7 +467,9 @@ Supported values for kind: Node.
 
 
 _Appears in:_
+- [NAT66ShardSpec](#nat66shardspec)
 - [NetworkGatewaySpec](#networkgatewayspec)
+- [ServiceVIPBindingSpec](#servicevipbindingspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |

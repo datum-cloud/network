@@ -4,24 +4,27 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: networkegresspolicies.network.datumapis.com
+  name: nat66shards.network.datumapis.com
 spec:
   group: network.datumapis.com
   names:
-    kind: NetworkEgressPolicy
-    listKind: NetworkEgressPolicyList
-    plural: networkegresspolicies
+    kind: NAT66Shard
+    listKind: NAT66ShardList
+    plural: nat66shards
     shortNames:
-    - netegress
-    singular: networkegresspolicy
+    - nat66shard
+    singular: nat66shard
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.vpcRef
-      name: VPC
+    - jsonPath: .spec.targetRef.name
+      name: TARGET
       type: string
-    - jsonPath: .spec.vpcAttachmentRef
-      name: VPC-ATTACHMENT
+    - jsonPath: .status.shardAddress
+      name: SHARD-ADDRESS
+      type: string
+    - jsonPath: .status.shardSID
+      name: SHARD-SID
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: AGE
@@ -30,32 +33,21 @@ spec:
     schema:
       openAPIV3Schema:
         description: |-
-          NetworkEgressPolicy enables internet egress for a single tenant
-          VPC/VPCAttachment, served by the sharded, stateful galactic-nat66 tier
-          (see NAT66Shard). Unlike NetworkRule, it carries no VIP/backend/port:
-          egress is on or off for a (vpcRef, vpcAttachmentRef) pair,
-          existence-implies-enabled, not a per-flow rule — because the destination
-          of an egress flow is an arbitrary internet address, not a pre-configured
-          backend list.
+          NAT66Shard marks a single node as a member of the sharded, stateful NAT66
+          egress tier (galactic-nat66) — a component deliberately kept off the
+          ingress load-balancer's own consistent-hash ring (see NetworkGateway):
+          tenant egress traffic (backend -> arbitrary internet destination) is a
+          different traffic pattern from ingress (fixed VIP, fixed backend pool)
+          and needs its own placement ring, own per-flow state, and its own
+          self-routing return path, entirely independent of any NetworkGateway node.
 
-          It is namespaced (deployed to galactic-system) and tenant-writable; like
-          NetworkRule, vpcRef/vpcAttachmentRef are opaque string identifiers because
-          the VPC API is owned by a separate companion operator, not this repo. An
-          admission webhook (implemented by the consuming controller) must verify
-          the requester is authorized for vpcRef/vpcAttachmentRef before a policy is
-          accepted — see the Accepted condition.
-
-          Presence of an accepted NetworkEgressPolicy resolves only *enablement*
-          (should this tenant's VRF get a default route toward the shared NAT66
-          tier at all) — unlike this type's original design (superseded), there is
-          no single "assigned gateway node" to compute or pin: any NAT66Shard may
-          serve any tenant's flow, chosen by the shard-placement consistent-hash
-          ring (internal/maglev, keyed on (tenant VRFID, backend, destination) —
-          see NAT66Shard's doc comment), not by a per-tenant node assignment stored
-          here. *Isolation* (preventing two tenants with colliding ULA source
-          addresses from colliding in the egress connection table) is a separate,
-          datapath-level concern resolved by tagging each flow with the VRFID
-          carried in the tenant's own SRv6 Argument, not by anything in this spec.
+          Every shard owns a dedicated, BGP-advertised public IPv6 address
+          (Status.ShardAddress) that a flow's allocated masquerade port lives
+          within — so a reply is delivered to the correct shard by ordinary
+          unicast SRv6/BGP routing alone, with no hashing or cross-shard lookup on
+          the return path at all (the "any node can determine the owning shard from
+          the tuple alone" property, satisfied by construction rather than by a
+          replicated hash table).
         properties:
           apiVersion:
             description: |-
@@ -75,40 +67,32 @@ spec:
           metadata:
             type: object
           spec:
-            description: |-
-              NetworkEgressPolicySpec defines the desired egress-enablement state for a
-              tenant VPC/VPCAttachment.
+            description: NAT66ShardSpec defines the desired state of a NAT66Shard.
             properties:
-              vpcAttachmentRef:
-                description: |-
-                  VPCAttachmentRef is the opaque identifier of the target
-                  VPCAttachment this policy applies to. Like VPCRef, this is an opaque
-                  string reference validated by the admission webhook, not by this API.
-                minLength: 1
-                type: string
-              vpcRef:
-                description: |-
-                  VPCRef is the opaque identifier of the target VPC this policy applies
-                  to. This repo does not own the VPC API and does not validate the
-                  identifier beyond non-emptiness; the admission webhook of the
-                  consuming controller is responsible for verifying the requester is
-                  authorized for this VPC before the policy is accepted.
-                minLength: 1
-                type: string
+              targetRef:
+                description: TargetRef identifies the Node this shard executes on.
+                properties:
+                  kind:
+                    description: Kind is the target resource kind (e.g. Node).
+                    minLength: 1
+                    type: string
+                  name:
+                    description: Name is the name of the target resource.
+                    minLength: 1
+                    type: string
+                required:
+                - kind
+                - name
+                type: object
             required:
-            - vpcAttachmentRef
-            - vpcRef
+            - targetRef
             type: object
           status:
-            description: |-
-              NetworkEgressPolicyStatus defines the observed state of a
-              NetworkEgressPolicy.
+            description: NAT66ShardStatus defines the observed state of a NAT66Shard.
             properties:
               conditions:
-                description: |-
-                  Conditions contains the standard conditions for this resource,
-                  including Accepted (see AcceptedReasonOwnershipVerified /
-                  AcceptedReasonOwnershipDenied in rule_types.go, reused as-is here).
+                description: Conditions contains the standard conditions for this
+                  resource.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -172,6 +156,30 @@ spec:
                   was computed from.
                 format: int64
                 type: integer
+              shardAddress:
+                description: |-
+                  ShardAddress is this shard's own dedicated, publicly-routable IPv6
+                  address — every masquerade port this shard allocates lives within it,
+                  so any node can route a reply to the correct shard using ordinary
+                  unicast routing on this address alone, with no per-flow state lookup
+                  anywhere but the owning shard itself. Operator-supplied per shard
+                  today (no in-cluster derivation mechanism yet — the same gap
+                  BGPRouter.Spec.SRv6Locator/NodeID assignment has today).
+                type: string
+                x-kubernetes-validations:
+                - message: shardAddress must be a valid IPv6 address
+                  rule: self == '' || isIP(self)
+              shardSID:
+                description: |-
+                  ShardSID is this shard's own uSID locator — a real SRv6 uSID (unlike
+                  ShardAddress, a plain routable address), advertised into BGP the same
+                  way any other node-reachability route is (a /128 BGPAdvertisement, no
+                  VRFID/Function) so every other node learns a kernel SEG6 route toward
+                  it before installing a tenant VRF's default egress route against it.
+                type: string
+                x-kubernetes-validations:
+                - message: shardSID must be a valid IPv6 address
+                  rule: self == '' || isIP(self)
             type: object
         type: object
     served: true

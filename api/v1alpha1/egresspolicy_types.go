@@ -5,12 +5,12 @@ import (
 )
 
 // NetworkEgressPolicy enables internet egress for a single tenant
-// VPC/VPCAttachment, served by the shared hyperconverged gateway engine's
-// masquerade (SNAT/PAT) datapath. Unlike NetworkRule, it carries no
-// VIP/backend/port: egress is on or off for a (vpcRef, vpcAttachmentRef)
-// pair, existence-implies-enabled, not a per-flow rule — because the
-// destination of an egress flow is an arbitrary internet address, not a
-// pre-configured backend list.
+// VPC/VPCAttachment, served by the sharded, stateful galactic-nat66 tier
+// (see NAT66Shard). Unlike NetworkRule, it carries no VIP/backend/port:
+// egress is on or off for a (vpcRef, vpcAttachmentRef) pair,
+// existence-implies-enabled, not a per-flow rule — because the destination
+// of an egress flow is an arbitrary internet address, not a pre-configured
+// backend list.
 //
 // It is namespaced (deployed to galactic-system) and tenant-writable; like
 // NetworkRule, vpcRef/vpcAttachmentRef are opaque string identifiers because
@@ -20,21 +20,22 @@ import (
 // accepted — see the Accepted condition.
 //
 // Presence of an accepted NetworkEgressPolicy resolves only *enablement*
-// (should this tenant reach the egress datapath at all) — a routing-layer
-// decision (does the tenant's VRF have a default route toward the shared
-// egress_sid locator), not a per-packet datapath lookup. *Isolation*
-// (preventing two tenants with colliding ULA source addresses from
-// colliding in the egress connection table) is a separate, datapath-level
-// concern resolved by tagging each flow with the tenant/VRF identifier
-// carried in the egress_sid locator's own Argument bits, not by anything in
-// this spec.
+// (should this tenant's VRF get a default route toward the shared NAT66
+// tier at all) — unlike this type's original design (superseded), there is
+// no single "assigned gateway node" to compute or pin: any NAT66Shard may
+// serve any tenant's flow, chosen by the shard-placement consistent-hash
+// ring (internal/maglev, keyed on (tenant VRFID, backend, destination) —
+// see NAT66Shard's doc comment), not by a per-tenant node assignment stored
+// here. *Isolation* (preventing two tenants with colliding ULA source
+// addresses from colliding in the egress connection table) is a separate,
+// datapath-level concern resolved by tagging each flow with the VRFID
+// carried in the tenant's own SRv6 Argument, not by anything in this spec.
 //
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Namespaced,shortName=netegress
 // +kubebuilder:printcolumn:name="VPC",type="string",JSONPath=".spec.vpcRef"
 // +kubebuilder:printcolumn:name="VPC-ATTACHMENT",type="string",JSONPath=".spec.vpcAttachmentRef"
-// +kubebuilder:printcolumn:name="ASSIGNED-NODE",type="string",JSONPath=".status.assignedGatewayNode"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 type NetworkEgressPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -70,25 +71,6 @@ type NetworkEgressPolicyStatus struct {
 	// ObservedGeneration is the .metadata.generation this status was computed from.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
-
-	// AssignedGatewayNode is the name of the NetworkGateway-backed gateway
-	// node this policy's tenant should route egress traffic through,
-	// mirroring NetworkRule's own status.primaryNode field and computed
-	// the same way: assigned_node = hash(vpcRef) % <gateway node count>
-	// (design plan §4.5 — a tenant's egress node and its primary ingress
-	// node are the same node, by design, so both fields are computed by
-	// the identical AssignPrimaryNode function). The controller consuming
-	// this CRD sets this field exactly once, at creation.
-	//
-	// This value must never be silently recomputed by a reconciler once
-	// set, for the exact same reason NetworkRuleStatus.PrimaryNode's own
-	// doc comment gives: recomputing it on a later reconcile can flip
-	// which node a tenant's egress traffic routes through and cause an
-	// avoidable traffic flap; a reconciler that observes a stale or
-	// removed node here must surface that via a condition instead of
-	// overwriting the value.
-	// +optional
-	AssignedGatewayNode string `json:"assignedGatewayNode,omitempty"`
 
 	// Conditions contains the standard conditions for this resource,
 	// including Accepted (see AcceptedReasonOwnershipVerified /

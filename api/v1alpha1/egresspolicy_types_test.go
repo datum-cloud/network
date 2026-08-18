@@ -128,73 +128,14 @@ func TestNetworkEgressPolicyFieldNames(t *testing.T) {
 	}
 }
 
-// TestNetworkGatewayEgressAddressFieldName verifies NetworkGatewayStatus's
-// new EgressAddress field round-trips under the JSON key "egressAddress"
-// and stays independently settable from SRv6Address (a gateway node may
-// have one, both, or neither populated).
-func TestNetworkGatewayEgressAddressFieldName(t *testing.T) {
-	gw := newTestGateway()
-	gw.Status.EgressAddress = "2001:db8:ffff::1"
-
-	data, err := json.Marshal(gw)
-	if err != nil {
-		t.Fatalf("Marshal: %v", err)
-	}
-
-	var m map[string]any
-	if err := json.Unmarshal(data, &m); err != nil {
-		t.Fatalf("Unmarshal: %v", err)
-	}
-
-	status, ok := m["status"].(map[string]any)
-	if !ok {
-		t.Fatalf("status not found or wrong type: %v", m["status"])
-	}
-	if v, ok := status["egressAddress"]; !ok || v != "2001:db8:ffff::1" {
-		t.Errorf("expected status.egressAddress=%q, got %v", "2001:db8:ffff::1", status["egressAddress"])
-	}
-	if v, ok := status["sRv6Address"]; !ok || v != "2001:db8:1::1" {
-		t.Errorf("expected status.sRv6Address unaffected, got %v", v)
-	}
-}
-
-// TestNetworkGatewayEgressSIDFieldName verifies NetworkGatewayStatus's new
-// EgressSID field round-trips under the JSON key "egressSID" (design plan
-// §3.1/§4.3) and stays independently settable from SRv6Address/
-// EgressAddress.
-func TestNetworkGatewayEgressSIDFieldName(t *testing.T) {
-	gw := newTestGateway()
-	gw.Status.EgressAddress = "2001:db8:ffff::1"
-	gw.Status.EgressSID = "2001:db8:eeee::1"
-
-	data, err := json.Marshal(gw)
-	if err != nil {
-		t.Fatalf("Marshal: %v", err)
-	}
-
-	var m map[string]any
-	if err := json.Unmarshal(data, &m); err != nil {
-		t.Fatalf("Unmarshal: %v", err)
-	}
-
-	status, ok := m["status"].(map[string]any)
-	if !ok {
-		t.Fatalf("status not found or wrong type: %v", m["status"])
-	}
-	if v, ok := status["egressSID"]; !ok || v != "2001:db8:eeee::1" {
-		t.Errorf("expected status.egressSID=%q, got %v", "2001:db8:eeee::1", status["egressSID"])
-	}
-	if v, ok := status["egressAddress"]; !ok || v != "2001:db8:ffff::1" {
-		t.Errorf("expected status.egressAddress unaffected, got %v", v)
-	}
-}
-
-// TestNetworkEgressPolicyAssignedGatewayNodeFieldName verifies the new
-// AssignedGatewayNode field round-trips under the JSON key
-// "assignedGatewayNode" (design plan §4.5).
-func TestNetworkEgressPolicyAssignedGatewayNodeFieldName(t *testing.T) {
+// TestNetworkEgressPolicyStatusHasNoAssignedGatewayNode is a regression
+// test: the earlier design pinned a policy to a single gateway node's
+// masquerade datapath. The sharded galactic-nat66 tier has no such fixed
+// assignment — any NAT66Shard may serve any tenant's flow, chosen by the
+// shard-placement consistent-hash ring, not a per-tenant node stored here.
+func TestNetworkEgressPolicyStatusHasNoAssignedGatewayNode(t *testing.T) {
 	orig := newTestEgressPolicy()
-	orig.Status.AssignedGatewayNode = "gw-node-a"
+	orig.Status.Conditions = []metav1.Condition{{Type: ConditionTypeAccepted}}
 
 	data, err := json.Marshal(orig)
 	if err != nil {
@@ -210,22 +151,7 @@ func TestNetworkEgressPolicyAssignedGatewayNodeFieldName(t *testing.T) {
 	if !ok {
 		t.Fatalf("status not found or wrong type: %v", m["status"])
 	}
-	if v, ok := status["assignedGatewayNode"]; !ok || v != "gw-node-a" {
-		t.Errorf("expected status.assignedGatewayNode=%q, got %v", "gw-node-a", status["assignedGatewayNode"])
-	}
-}
-
-// TestNetworkEgressPolicyDeepCopyIncludesAssignedGatewayNode extends
-// TestNetworkEgressPolicyDeepCopy to cover the new field: mutating the copy
-// must not affect the original.
-func TestNetworkEgressPolicyDeepCopyIncludesAssignedGatewayNode(t *testing.T) {
-	orig := newTestEgressPolicy()
-	orig.Status.AssignedGatewayNode = "gw-node-a"
-
-	dup := orig.DeepCopy()
-	dup.Status.AssignedGatewayNode = "gw-node-b"
-
-	if orig.Status.AssignedGatewayNode != "gw-node-a" {
-		t.Errorf("AssignedGatewayNode mutated: got %q", orig.Status.AssignedGatewayNode)
+	if _, ok := status["assignedGatewayNode"]; ok {
+		t.Errorf("unexpected assignedGatewayNode field present in status: %v", status)
 	}
 }
