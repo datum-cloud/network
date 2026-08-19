@@ -24,9 +24,6 @@ func newTestRule() *NetworkRule {
 				{Address: "fd00:10:1::1", Port: 8443},
 			},
 		},
-		Status: NetworkRuleStatus{
-			PrimaryNode: "gw-node-a",
-		},
 	}
 }
 
@@ -38,16 +35,12 @@ func TestNetworkRuleDeepCopy(t *testing.T) {
 
 	dup.Spec.VIPAddresses[0] = "2001:db8:1::20"
 	dup.Spec.Backends[0].Address = "fd00:10:1::2"
-	dup.Status.PrimaryNode = "gw-node-b"
 
 	if orig.Spec.VIPAddresses[0] != "2001:db8:1::10" {
 		t.Errorf("VIPAddresses[0] mutated: got %q", orig.Spec.VIPAddresses[0])
 	}
 	if orig.Spec.Backends[0].Address != "fd00:10:1::1" {
 		t.Errorf("Backends[0].Address mutated: got %q", orig.Spec.Backends[0].Address)
-	}
-	if orig.Status.PrimaryNode != "gw-node-a" {
-		t.Errorf("PrimaryNode mutated: got %q", orig.Status.PrimaryNode)
 	}
 }
 
@@ -87,9 +80,6 @@ func TestNetworkRuleJSONRoundTrip(t *testing.T) {
 	if len(got.Spec.Backends) != 2 {
 		t.Errorf("Backends len: got %d, want 2", len(got.Spec.Backends))
 	}
-	if got.Status.PrimaryNode != orig.Status.PrimaryNode {
-		t.Errorf("PrimaryNode: got %q, want %q", got.Status.PrimaryNode, orig.Status.PrimaryNode)
-	}
 	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != AcceptedReasonOwnershipVerified {
 		t.Errorf("Conditions: got %v", got.Status.Conditions)
 	}
@@ -102,16 +92,20 @@ func TestNetworkRuleListDeepCopy(t *testing.T) {
 		Items: []NetworkRule{*newTestRule()},
 	}
 	copied := list.DeepCopy()
-	copied.Items[0].Status.PrimaryNode = "gw-node-b"
+	copied.Items[0].Spec.VPCRef = "vpc-b"
 
-	if list.Items[0].Status.PrimaryNode != "gw-node-a" {
+	if list.Items[0].Spec.VPCRef != "vpc-a" {
 		t.Errorf("original list item mutated via copy")
 	}
 }
 
-// TestNetworkRulePrimaryNodeFieldName verifies the JSON key is "primaryNode".
-func TestNetworkRulePrimaryNodeFieldName(t *testing.T) {
+// TestNetworkRuleStatusHasNoPrimaryNode is a regression test: the earlier
+// active-passive Full-NAT design assigned a single primaryNode per rule.
+// This design's anycast/DSR model has every NetworkGateway serve every rule
+// identically, so no such field should exist any more.
+func TestNetworkRuleStatusHasNoPrimaryNode(t *testing.T) {
 	orig := newTestRule()
+	orig.Status.Conditions = []metav1.Condition{{Type: ConditionTypeAccepted}}
 
 	data, err := json.Marshal(orig.Status)
 	if err != nil {
@@ -123,8 +117,8 @@ func TestNetworkRulePrimaryNodeFieldName(t *testing.T) {
 		t.Fatalf("Unmarshal: %v", err)
 	}
 
-	if v, ok := m["primaryNode"]; !ok || v != "gw-node-a" {
-		t.Errorf("unexpected primaryNode value: %v", m["primaryNode"])
+	if _, ok := m["primaryNode"]; ok {
+		t.Errorf("unexpected primaryNode field present in status: %v", m)
 	}
 }
 

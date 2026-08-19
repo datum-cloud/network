@@ -48,14 +48,23 @@ type NetworkRuleBackend struct {
 	Port int32 `json:"port"`
 }
 
-// NetworkRule defines ingress load-balancing and NAT for a single tenant
-// VPC/VPCAttachment, served by the shared hyperconverged gateway engine.
-// It is namespaced (deployed to galactic-system) and tenant-writable; the
+// NetworkRule defines ingress load-balancing for a single tenant
+// VPC/VPCAttachment, served by every NetworkGateway node identically
+// (anycast Direct Server Return — see NetworkGateway's doc comment). It is
+// namespaced (deployed to galactic-system) and tenant-writable; the
 // vpcRef/vpcAttachmentRef fields are opaque string identifiers because the
 // VPC API is owned by a separate companion operator, not this repo. An
 // admission webhook (implemented by the consuming controller) must verify
 // the requester is authorized for vpcRef/vpcAttachmentRef before a rule is
 // accepted — see the Accepted condition.
+//
+// Unlike the earlier Full-NAT design this type originally described, there
+// is no primary/secondary gateway node for a rule: every NetworkGateway
+// advertises every accepted rule's vipAddresses at equal BGP preference,
+// consistent-hashes the same backend list to the same backend for the same
+// flow (internal/maglev), and forwards without rewriting anything —
+// backend selection never needs a single "owning" node the way Full-NAT's
+// SNAT-source model did.
 //
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
@@ -63,7 +72,6 @@ type NetworkRuleBackend struct {
 // +kubebuilder:printcolumn:name="VPC",type="string",JSONPath=".spec.vpcRef"
 // +kubebuilder:printcolumn:name="PROTOCOL",type="string",JSONPath=".spec.protocol"
 // +kubebuilder:printcolumn:name="PORT",type="integer",JSONPath=".spec.port"
-// +kubebuilder:printcolumn:name="PRIMARY-NODE",type="string",JSONPath=".status.primaryNode"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 type NetworkRule struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -125,20 +133,6 @@ type NetworkRuleStatus struct {
 	// ObservedGeneration is the .metadata.generation this status was computed from.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
-
-	// PrimaryNode is the name of the NetworkGateway-backed gateway node
-	// assigned to advertise this rule's VIPAddresses at the preferred BGP
-	// local-preference, per the active-active model: primary_node =
-	// hash(vpcRef) % <gateway node count>. The controller consuming this
-	// CRD sets this field exactly once, at creation.
-	//
-	// This value must never be silently recomputed by a reconciler once
-	// set. Recomputing it on a later reconcile can flip which node is
-	// primary for a live VIP and cause an avoidable traffic flap; a
-	// reconciler that observes a stale or removed node here must surface
-	// that via a condition instead of overwriting the value.
-	// +optional
-	PrimaryNode string `json:"primaryNode,omitempty"`
 
 	// Conditions contains the standard conditions for this resource.
 	//

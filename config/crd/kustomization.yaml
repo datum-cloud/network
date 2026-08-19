@@ -8,3 +8,7 @@ resources:
   - network.datumapis.com_bgprouters.yaml
   - network.datumapis.com_bgpvrfinstances.yaml
   - network.datumapis.com_networkegresspolicies.yaml
+  - network.datumapis.com_networkgateways.yaml
+  - network.datumapis.com_networkrules.yaml
+  - network.datumapis.com_servicevipbindings.yaml
+  - network.datumapis.com_nat66shards.yaml
