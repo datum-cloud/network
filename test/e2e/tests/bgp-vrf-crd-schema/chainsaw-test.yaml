@@ -182,6 +182,36 @@ spec:
               echo "OK: vrfID above 65535 correctly rejected"
               echo "Server response: $OUTPUT"
 
+    - name: accept-max-uint32-route-target
+      try:
+        - apply:
+            resource:
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: BGPVRFInstance
+              metadata:
+                name: e2e-vrf-rt-max
+              spec:
+                routerRef:
+                  name: bgp-e2e-worker
+                vrfID: 100
+                # A 2-byte-ASN route target's local administrator is a full
+                # 4-byte value, so it needs ten digits. Callers derive it from
+                # the low 32 bits of an identifier, which lands above 1e9 for
+                # roughly three quarters of the space.
+                importRouteTargets:
+                  - value: "65000:4294967295"
+                exportRouteTargets:
+                  - value: "65000:4294967295"
+        - assert:
+            resource:
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: BGPVRFInstance
+              metadata:
+                name: e2e-vrf-rt-max
+              spec:
+                importRouteTargets:
+                  - value: "65000:4294967295"
+
     - name: reject-invalid-rt-format
       try:
         - script:
