@@ -70,7 +70,7 @@ spec:
                   type: object
                   x-kubernetes-validations:
                   - message: value must be in ASN:NN or IP:NN format
-                    rule: self.value.matches('^([0-9]{1,9}[.][0-9]{1,9}[.][0-9]{1,9}[.][0-9]{1,9}|[0-9]{1,9}):[0-9]{1,9}$')
+                    rule: self.value.matches('^([0-9]{1,9}[.][0-9]{1,9}[.][0-9]{1,9}[.][0-9]{1,9}|[0-9]{1,10}):[0-9]{1,10}$')
                 maxItems: 32
                 minItems: 1
                 type: array
@@ -94,7 +94,7 @@ spec:
                   type: object
                   x-kubernetes-validations:
                   - message: value must be in ASN:NN or IP:NN format
-                    rule: self.value.matches('^([0-9]{1,9}[.][0-9]{1,9}[.][0-9]{1,9}[.][0-9]{1,9}|[0-9]{1,9}):[0-9]{1,9}$')
+                    rule: self.value.matches('^([0-9]{1,9}[.][0-9]{1,9}[.][0-9]{1,9}[.][0-9]{1,9}|[0-9]{1,10}):[0-9]{1,10}$')
                 maxItems: 32
                 minItems: 1
                 type: array

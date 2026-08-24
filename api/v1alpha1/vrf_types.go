@@ -86,7 +86,7 @@ type NPTv6Spec struct {
 
 // RouteTarget is a BGP extended community in "ASN:NN" or "IP:NN" format.
 //
-// +kubebuilder:validation:XValidation:rule="self.value.matches('^([0-9]{1,9}[.][0-9]{1,9}[.][0-9]{1,9}[.][0-9]{1,9}|[0-9]{1,9}):[0-9]{1,9}$')",message="value must be in ASN:NN or IP:NN format"
+// +kubebuilder:validation:XValidation:rule="self.value.matches('^([0-9]{1,9}[.][0-9]{1,9}[.][0-9]{1,9}[.][0-9]{1,9}|[0-9]{1,10}):[0-9]{1,10}$')",message="value must be in ASN:NN or IP:NN format"
 type RouteTarget struct {
 	// Value is the route target extended community string.
 	// Format: "ASN:NN" (e.g. "65000:100") or "IP:NN" (e.g. "192.0.2.1:100").
