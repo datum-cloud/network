@@ -777,7 +777,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `targetRef` _[TargetRef](#targetref)_ | TargetRef identifies the Node this router executes on. |  | Required: \{\} <br /> |
-| `roles` _[RouterRole](#routerrole) array_ | Roles describes the functional roles this router participates in.<br />At least one role is required. |  | Enum: [fabric tenant transit] <br />MinItems: 1 <br /> |
 | `localASN` _integer_ | LocalASN is the BGP Autonomous System Number for this router.<br />Must be a valid 2-byte or 4-byte ASN per RFC 6793. |  | Minimum: 1 <br />Required: \{\} <br /> |
 | `routerID` _string_ | RouterID is a unique 32-bit identifier expressed in IPv4 dotted-decimal notation.<br />In an IPv6-only underlay this is a logical identifier only. |  | Format: ipv4 <br />Required: \{\} <br /> |
 | `addressFamilies` _[AddressFamily](#addressfamily) array_ | AddressFamilies defines the address families this router activates. |  | MinItems: 1 <br /> |
@@ -801,7 +800,6 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _[BGPRouterPhase](#bgprouterphase)_ | Phase is the high-level lifecycle state of this router. |  |  |
 | `observedGeneration` _integer_ | ObservedGeneration is the .metadata.generation this status was computed from. |  |  |
-| `roles` _[RouterRole](#routerrole) array_ | Roles reflects the active roles as observed by the implementation. |  | Enum: [fabric tenant transit] <br /> |
 | `peers` _[BGPRouterPeerSummary](#bgprouterpeersummary)_ | Peers summarizes peer session counts. |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource. |  |  |
 
@@ -1182,26 +1180,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `name` _string_ | Name is the name of the BGPRouter. |  | MinLength: 1 <br /> |
-
-
-#### RouterRole
-
-_Underlying type:_ _string_
-
-RouterRole defines the functional role of a BGPRouter within the network.
-
-_Validation:_
-- Enum: [fabric tenant transit]
-
-_Appears in:_
-- [BGPRouterSpec](#bgprouterspec)
-- [BGPRouterStatus](#bgprouterstatus)
-
-| Field | Description |
-| --- | --- |
-| `fabric` |  |
-| `tenant` |  |
-| `transit` |  |
 
 
 #### RouterSelector

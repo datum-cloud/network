@@ -55,17 +55,6 @@ const (
 	SRv6FunctionEndDT46 SRv6Function = "End.DT46"
 )
 
-// RouterRole defines the functional role of a BGPRouter within the network.
-//
-// +kubebuilder:validation:Enum=fabric;tenant;transit
-type RouterRole string
-
-const (
-	RouterRoleFabric  RouterRole = "fabric"
-	RouterRoleTenant  RouterRole = "tenant"
-	RouterRoleTransit RouterRole = "transit"
-)
-
 // TargetRef identifies the execution target for a BGPRouter.
 // Supported values for kind: Node.
 type TargetRef struct {

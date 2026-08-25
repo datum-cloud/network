@@ -6,7 +6,6 @@ processor:
     - "SAFI"
     - "AddressFamily"
     - "SRv6Function"
-    - "RouterRole"
     - "OriginType"
     - "RouterRef"
     - "RouterSelector"

@@ -63,8 +63,6 @@ spec:
   targetRef:
     kind: Node
     name: node-1
-  roles:
-    - fabric
   localASN: 65000
   routerID: "10.0.0.1"
   addressFamilies:
@@ -102,8 +100,6 @@ spec:
   targetRef:
     kind: Node
     name: node-1
-  roles:
-    - fabric
   localASN: 65000
   routerID: "10.0.0.1"
   addressFamilies:

@@ -7,7 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func newTestRouter(roles ...RouterRole) *BGPRouter {
+func newTestRouter() *BGPRouter {
 	return &BGPRouter{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "network.datumapis.com/v1alpha1",
@@ -18,114 +18,7 @@ func newTestRouter(roles ...RouterRole) *BGPRouter {
 			TargetRef: TargetRef{Kind: "Node", Name: "node-1"},
 			LocalASN:  65000,
 			RouterID:  "10.0.0.1",
-			Roles:     roles,
 		},
-	}
-}
-
-// TestBGPRouterDeepCopyRoles verifies that mutating Roles on the copy does not
-// affect the original.
-func TestBGPRouterDeepCopyRoles(t *testing.T) {
-	orig := newTestRouter(RouterRoleTransit, RouterRoleFabric)
-	dup := orig.DeepCopy()
-
-	dup.Spec.Roles[0] = RouterRoleTenant
-
-	if orig.Spec.Roles[0] != RouterRoleTransit {
-		t.Errorf("Roles[0] mutated: got %q, want %q", orig.Spec.Roles[0], RouterRoleTransit)
-	}
-	if orig.Spec.Roles[1] != RouterRoleFabric {
-		t.Errorf("Roles[1] mutated: got %q, want %q", orig.Spec.Roles[1], RouterRoleFabric)
-	}
-}
-
-// TestBGPRouterDeepCopyNilRoles verifies that a router with no roles deep-copies
-// without allocating a non-nil slice.
-func TestBGPRouterDeepCopyNilRoles(t *testing.T) {
-	orig := newTestRouter()
-	dup := orig.DeepCopy()
-
-	if dup.Spec.Roles != nil {
-		t.Errorf("expected nil Roles on copy, got %v", dup.Spec.Roles)
-	}
-}
-
-// TestBGPRouterJSONRoundTripRoles verifies that Roles survives JSON marshal/unmarshal.
-func TestBGPRouterJSONRoundTripRoles(t *testing.T) {
-	cases := []struct {
-		name  string
-		roles []RouterRole
-	}{
-		{"no roles", nil},
-		{"single transit", []RouterRole{RouterRoleTransit}},
-		{"all roles", []RouterRole{RouterRoleTransit, RouterRoleFabric, RouterRoleTenant}},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			orig := newTestRouter(tc.roles...)
-
-			data, err := json.Marshal(orig)
-			if err != nil {
-				t.Fatalf("Marshal: %v", err)
-			}
-
-			var got BGPRouter
-			if err := json.Unmarshal(data, &got); err != nil {
-				t.Fatalf("Unmarshal: %v", err)
-			}
-
-			if len(got.Spec.Roles) != len(tc.roles) {
-				t.Fatalf("Roles len: got %d, want %d", len(got.Spec.Roles), len(tc.roles))
-			}
-			for i, r := range tc.roles {
-				if got.Spec.Roles[i] != r {
-					t.Errorf("Roles[%d]: got %q, want %q", i, got.Spec.Roles[i], r)
-				}
-			}
-		})
-	}
-}
-
-// TestBGPRouterJSONRolesFieldName verifies the JSON key is "roles".
-func TestBGPRouterJSONRolesFieldName(t *testing.T) {
-	orig := newTestRouter(RouterRoleFabric)
-	data, err := json.Marshal(orig.Spec)
-	if err != nil {
-		t.Fatalf("Marshal: %v", err)
-	}
-
-	var m map[string]any
-	if err := json.Unmarshal(data, &m); err != nil {
-		t.Fatalf("Unmarshal: %v", err)
-	}
-
-	raw, ok := m["roles"]
-	if !ok {
-		t.Fatal("expected JSON key \"roles\" not found")
-	}
-	roles, ok := raw.([]any)
-	if !ok || len(roles) != 1 || roles[0] != "fabric" {
-		t.Errorf("unexpected roles value: %v", raw)
-	}
-}
-
-// TestBGPRouterRolesOmitEmpty verifies that a router with no roles omits the
-// "roles" key from JSON output.
-func TestBGPRouterRolesOmitEmpty(t *testing.T) {
-	orig := newTestRouter()
-	data, err := json.Marshal(orig.Spec)
-	if err != nil {
-		t.Fatalf("Marshal: %v", err)
-	}
-
-	var m map[string]any
-	if err := json.Unmarshal(data, &m); err != nil {
-		t.Fatalf("Unmarshal: %v", err)
-	}
-
-	if _, ok := m["roles"]; ok {
-		t.Error("expected \"roles\" key to be absent when empty")
 	}
 }
 
@@ -145,7 +38,6 @@ func TestBGPRouterLargeLocalASN(t *testing.T) {
 			TargetRef: TargetRef{Kind: "Node", Name: "node-1"},
 			LocalASN:  maxASN,
 			RouterID:  "10.0.0.1",
-			Roles:     []RouterRole{RouterRoleTransit},
 			AddressFamilies: []AddressFamily{
 				{AFI: AFIIPv4, SAFI: SAFIUnicast},
 			},
@@ -183,7 +75,6 @@ func TestBGPRouterLocalASNAboveSignedInt32Max(t *testing.T) {
 			TargetRef: TargetRef{Kind: "Node", Name: "node-1"},
 			LocalASN:  aboveSignedMax,
 			RouterID:  "10.0.0.1",
-			Roles:     []RouterRole{RouterRoleTransit},
 			AddressFamilies: []AddressFamily{
 				{AFI: AFIIPv4, SAFI: SAFIUnicast},
 			},
@@ -221,7 +112,7 @@ func TestBGPRouterDeepCopyLocalASN(t *testing.T) {
 // TestBGPRouterJSONRoundTripSRv6Locator verifies that SRv6Locator survives
 // JSON marshal/unmarshal.
 func TestBGPRouterJSONRoundTripSRv6Locator(t *testing.T) {
-	orig := newTestRouter(RouterRoleFabric)
+	orig := newTestRouter()
 	orig.Spec.SRv6Locator = "2001:db8:ff01::/48"
 
 	data, err := json.Marshal(orig)
@@ -241,7 +132,7 @@ func TestBGPRouterJSONRoundTripSRv6Locator(t *testing.T) {
 
 // TestBGPRouterSRv6LocatorFieldName verifies the JSON key is "srv6Locator".
 func TestBGPRouterSRv6LocatorFieldName(t *testing.T) {
-	orig := newTestRouter(RouterRoleFabric)
+	orig := newTestRouter()
 	orig.Spec.SRv6Locator = "2001:db8:ff01::/48"
 
 	data, err := json.Marshal(orig.Spec)
@@ -262,7 +153,7 @@ func TestBGPRouterSRv6LocatorFieldName(t *testing.T) {
 // TestBGPRouterSRv6LocatorOmitEmpty verifies that a router without a
 // SRv6Locator omits the "srv6Locator" key from JSON output.
 func TestBGPRouterSRv6LocatorOmitEmpty(t *testing.T) {
-	orig := newTestRouter(RouterRoleFabric)
+	orig := newTestRouter()
 
 	data, err := json.Marshal(orig.Spec)
 	if err != nil {
@@ -282,7 +173,7 @@ func TestBGPRouterSRv6LocatorOmitEmpty(t *testing.T) {
 // TestBGPRouterJSONRoundTripNodeID verifies that NodeID survives JSON
 // marshal/unmarshal.
 func TestBGPRouterJSONRoundTripNodeID(t *testing.T) {
-	orig := newTestRouter(RouterRoleFabric)
+	orig := newTestRouter()
 	orig.Spec.NodeID = 42
 
 	data, err := json.Marshal(orig)
@@ -302,7 +193,7 @@ func TestBGPRouterJSONRoundTripNodeID(t *testing.T) {
 
 // TestBGPRouterNodeIDFieldName verifies the JSON key is "nodeID".
 func TestBGPRouterNodeIDFieldName(t *testing.T) {
-	orig := newTestRouter(RouterRoleFabric)
+	orig := newTestRouter()
 	orig.Spec.NodeID = 42
 
 	data, err := json.Marshal(orig.Spec)
@@ -323,7 +214,7 @@ func TestBGPRouterNodeIDFieldName(t *testing.T) {
 // TestBGPRouterNodeIDOmitEmpty verifies that a router without a NodeID omits
 // the "nodeID" key from JSON output.
 func TestBGPRouterNodeIDOmitEmpty(t *testing.T) {
-	orig := newTestRouter(RouterRoleFabric)
+	orig := newTestRouter()
 
 	data, err := json.Marshal(orig.Spec)
 	if err != nil {
@@ -343,7 +234,7 @@ func TestBGPRouterNodeIDOmitEmpty(t *testing.T) {
 // TestBGPRouterJSONRoundTripListenPort verifies that ListenPort survives
 // JSON marshal/unmarshal.
 func TestBGPRouterJSONRoundTripListenPort(t *testing.T) {
-	orig := newTestRouter(RouterRoleFabric)
+	orig := newTestRouter()
 	port := int32(179)
 	orig.Spec.ListenPort = &port
 
@@ -366,7 +257,7 @@ func TestBGPRouterJSONRoundTripListenPort(t *testing.T) {
 
 // TestBGPRouterListenPortFieldName verifies the JSON key is "listenPort".
 func TestBGPRouterListenPortFieldName(t *testing.T) {
-	orig := newTestRouter(RouterRoleFabric)
+	orig := newTestRouter()
 	port := int32(179)
 	orig.Spec.ListenPort = &port
 
@@ -388,7 +279,7 @@ func TestBGPRouterListenPortFieldName(t *testing.T) {
 // TestBGPRouterListenPortOmitEmpty verifies that a router without a
 // ListenPort omits the "listenPort" key from JSON output.
 func TestBGPRouterListenPortOmitEmpty(t *testing.T) {
-	orig := newTestRouter(RouterRoleFabric)
+	orig := newTestRouter()
 
 	data, err := json.Marshal(orig.Spec)
 	if err != nil {
@@ -418,7 +309,7 @@ func TestBGPRouterListenPortBoundaryValues(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			orig := newTestRouter(RouterRoleFabric)
+			orig := newTestRouter()
 			orig.Spec.ListenPort = &tc.port
 
 			data, err := json.Marshal(orig.Spec)
