@@ -22,7 +22,6 @@ const (
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Namespaced,shortName=bgpr
 // +kubebuilder:printcolumn:name="TARGET",type="string",JSONPath=".spec.targetRef.name"
-// +kubebuilder:printcolumn:name="ROLES",type="string",JSONPath=".spec.roles"
 // +kubebuilder:printcolumn:name="ASN",type="integer",JSONPath=".spec.localASN"
 // +kubebuilder:printcolumn:name="ROUTER-ID",type="string",JSONPath=".spec.routerID"
 // +kubebuilder:printcolumn:name="PHASE",type="string",JSONPath=".status.phase"
@@ -40,11 +39,6 @@ type BGPRouterSpec struct {
 	// TargetRef identifies the Node this router executes on.
 	// +kubebuilder:validation:Required
 	TargetRef TargetRef `json:"targetRef"`
-
-	// Roles describes the functional roles this router participates in.
-	// At least one role is required.
-	// +kubebuilder:validation:MinItems=1
-	Roles []RouterRole `json:"roles,omitempty"`
 
 	// LocalASN is the BGP Autonomous System Number for this router.
 	// Must be a valid 2-byte or 4-byte ASN per RFC 6793.
@@ -95,10 +89,6 @@ type BGPRouterStatus struct {
 	// ObservedGeneration is the .metadata.generation this status was computed from.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
-
-	// Roles reflects the active roles as observed by the implementation.
-	// +optional
-	Roles []RouterRole `json:"roles,omitempty"`
 
 	// Peers summarizes peer session counts.
 	// +optional

@@ -83,7 +83,7 @@ The design follows standard Kubernetes API conventions: resources have a `Spec` 
 | `advertisement_types.go`    | `BGPAdvertisement`, `BGPAdvertisementSpec`, `BGPAdvertisementStatus`                                                                                              |
 | `policy_types.go`           | `BGPPolicy`, `BGPPolicySpec`, `BGPPolicyTerm`, `BGPPolicyMatch`, `BGPPolicySetActions`, `CommunitySet`                                                               |
 | `vrf_types.go`              | `BGPVRFInstance`, `BGPVRFInstanceSpec`, `BGPVRFInstanceStatus`, `RouteTarget`                                                                                     |
-| `shared_types.go`           | `RouterTarget`, `RouterRef`, `RouterSelector`, `TargetRef`, `AddressFamily`, `AFI`, `SAFI`, `RouterRole`, `LocalSecretRef`, `RouterStatus`, `ResolvedRouterConfig` |
+| `shared_types.go`           | `RouterTarget`, `RouterRef`, `RouterSelector`, `TargetRef`, `AddressFamily`, `AFI`, `SAFI`, `LocalSecretRef`, `RouterStatus`, `ResolvedRouterConfig` |
 | `zz_generated.deepcopy.go`  | Generated `DeepCopy*` methods — do not edit                                                                                                                       |
 
 **External dependencies:**
@@ -123,7 +123,6 @@ One per routing plane per node. Declares the local ASN, router ID, address famil
 
 Key spec fields:
 - `targetRef.kind/name` — identifies the Kubernetes Node this router runs on
-- `roles` — one or more of `fabric`, `tenant`, `transit` (at least one required)
 - `localASN int64` — 2-byte or 4-byte BGP ASN (1–4294967295)
 - `routerID string` — IPv4 dotted-decimal notation (logical identifier in IPv6-only underlays)
 - `addressFamilies []AddressFamily` — AFI/SAFI pairs this router activates

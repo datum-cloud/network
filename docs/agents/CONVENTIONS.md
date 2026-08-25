@@ -179,7 +179,7 @@ refactor/bgp-api-v3
 | Status                  | `{Resource}Status`                            | `BGPRouterStatus`                              |
 | List                    | `{Resource}List`                              | `BGPRouterList`                                |
 | Enum type               | `{Resource}{Field}` or descriptive noun       | `BGPRouterPhase`, `BGPPeerState`               |
-| Enum constant           | `{TypeName}{Value}`                           | `BGPRouterPhasePending`, `RouterRoleFabric`    |
+| Enum constant           | `{TypeName}{Value}`                           | `BGPRouterPhasePending`, `AFIIPv4`             |
 | Condition type constant | `ConditionType{Name}` (`string`)              | `ConditionTypeReady`, `ConditionTypeAccepted`  |
 | Idle reason constant    | `IdleReason{Name}` (`string`)                 | `IdleReasonBackOff`                            |
 | Shared struct           | Descriptive PascalCase                        | `RouterTarget`, `AddressFamily`, `LocalSecretRef` |

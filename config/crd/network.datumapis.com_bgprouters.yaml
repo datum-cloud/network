@@ -20,9 +20,6 @@ spec:
     - jsonPath: .spec.targetRef.name
       name: TARGET
       type: string
-    - jsonPath: .spec.roles
-      name: ROLES
-      type: string
     - jsonPath: .spec.localASN
       name: ASN
       type: integer
@@ -122,20 +119,6 @@ spec:
                 maximum: 254
                 minimum: 1
                 type: integer
-              roles:
-                description: |-
-                  Roles describes the functional roles this router participates in.
-                  At least one role is required.
-                items:
-                  description: RouterRole defines the functional role of a BGPRouter
-                    within the network.
-                  enum:
-                  - fabric
-                  - tenant
-                  - transit
-                  type: string
-                minItems: 1
-                type: array
               routerID:
                 description: |-
                   RouterID is a unique 32-bit identifier expressed in IPv4 dotted-decimal notation.
@@ -262,17 +245,6 @@ spec:
               phase:
                 description: Phase is the high-level lifecycle state of this router.
                 type: string
-              roles:
-                description: Roles reflects the active roles as observed by the implementation.
-                items:
-                  description: RouterRole defines the functional role of a BGPRouter
-                    within the network.
-                  enum:
-                  - fabric
-                  - tenant
-                  - transit
-                  type: string
-                type: array
             type: object
         type: object
     served: true
