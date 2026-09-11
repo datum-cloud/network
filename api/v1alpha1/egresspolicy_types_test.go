@@ -130,8 +130,8 @@ func TestNetworkEgressPolicyFieldNames(t *testing.T) {
 
 // TestNetworkEgressPolicyStatusHasNoAssignedGatewayNode is a regression
 // test: the earlier design pinned a policy to a single gateway node's
-// masquerade datapath. The sharded galactic-nat66 tier has no such fixed
-// assignment — any NAT66Shard may serve any tenant's flow, chosen by the
+// masquerade datapath. The sharded galactic-nat tier has no such fixed
+// assignment — any EgressShard may serve any tenant's flow, chosen by the
 // shard-placement consistent-hash ring, not a per-tenant node stored here.
 func TestNetworkEgressPolicyStatusHasNoAssignedGatewayNode(t *testing.T) {
 	orig := newTestEgressPolicy()

@@ -4,27 +4,30 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: nat66shards.network.datumapis.com
+  name: egressshards.network.datumapis.com
 spec:
   group: network.datumapis.com
   names:
-    kind: NAT66Shard
-    listKind: NAT66ShardList
-    plural: nat66shards
+    kind: EgressShard
+    listKind: EgressShardList
+    plural: egressshards
     shortNames:
-    - nat66shard
-    singular: nat66shard
+    - egressshard
+    singular: egressshard
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
     - jsonPath: .spec.targetRef.name
       name: TARGET
       type: string
-    - jsonPath: .status.shardAddress
-      name: SHARD-ADDRESS
-      type: string
     - jsonPath: .status.shardSID
       name: SHARD-SID
+      type: string
+    - jsonPath: .status.shardAddressIPv6
+      name: IPV6
+      type: string
+    - jsonPath: .status.shardAddressIPv4
+      name: IPV4
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: AGE
@@ -33,21 +36,29 @@ spec:
     schema:
       openAPIV3Schema:
         description: |-
-          NAT66Shard marks a single node as a member of the sharded, stateful NAT66
-          egress tier (galactic-nat66) — a component deliberately kept off the
+          EgressShard marks a single node as a member of the sharded, stateful egress
+          translation tier (galactic-nat) — a component deliberately kept off the
           ingress load-balancer's own consistent-hash ring (see NetworkGateway):
           tenant egress traffic (backend -> arbitrary internet destination) is a
           different traffic pattern from ingress (fixed VIP, fixed backend pool)
           and needs its own placement ring, own per-flow state, and its own
           self-routing return path, entirely independent of any NetworkGateway node.
 
-          Every shard owns a dedicated, BGP-advertised public IPv6 address
-          (Status.ShardAddress) that a flow's allocated masquerade port lives
-          within — so a reply is delivered to the correct shard by ordinary
-          unicast SRv6/BGP routing alone, with no hashing or cross-shard lookup on
-          the return path at all (the "any node can determine the owning shard from
-          the tuple alone" property, satisfied by construction rather than by a
-          replicated hash table).
+          A shard serves one or both address families. NAT66 (IPv6 -> IPv6) and NAT64
+          (IPv6 -> IPv4, RFC 6146) are the same function — stateful egress PAT with a
+          VRF-scoped session table — over different families, so one shard object
+          describes both rather than there being a second, near-duplicate kind.
+          Status.ShardAddressIPv6 and Status.ShardAddressIPv4 are each set only for
+          the family this shard actually translates; a shard serving only NAT66
+          leaves the IPv4 field empty and behaves exactly as it did before NAT64
+          existed.
+
+          Every shard owns a dedicated, publicly-routable address per family it
+          serves, and a flow's allocated masquerade port lives within it — so a reply
+          is delivered to the correct shard by ordinary unicast routing alone, with
+          no hashing or cross-shard lookup on the return path at all (the "any node
+          can determine the owning shard from the tuple alone" property, satisfied by
+          construction rather than by a replicated hash table).
         properties:
           apiVersion:
             description: |-
@@ -67,7 +78,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: NAT66ShardSpec defines the desired state of a NAT66Shard.
+            description: EgressShardSpec defines the desired state of an EgressShard.
             properties:
               targetRef:
                 description: TargetRef identifies the Node this shard executes on.
@@ -88,7 +99,13 @@ spec:
             - targetRef
             type: object
           status:
-            description: NAT66ShardStatus defines the observed state of a NAT66Shard.
+            description: |-
+              EgressShardStatus defines the observed state of an EgressShard.
+
+              Every field here is echoed from what the shard's datapath process was
+              actually started with, not derived: the shard publishes what it is running,
+              so a status that disagrees with an operator's intent is a visible
+              misconfiguration rather than a silently reconciled one.
             properties:
               conditions:
                 description: Conditions contains the standard conditions for this
@@ -151,35 +168,70 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              nat64Prefix:
+                description: |-
+                  NAT64Prefix is the IPv6 prefix whose synthesized addresses this shard
+                  translates to IPv4 — one Datum-operated Network-Specific Prefix, shared
+                  fabric-wide, never per-tenant. It is echoed here, rather than only
+                  existing as process configuration, because it is the single fact DNS64
+                  synthesis has to agree with: a shard translating for a different prefix
+                  than the resolver synthesizes into is otherwise a silent blackhole.
+
+                  Empty whenever ShardAddressIPv4 is empty.
+                type: string
+                x-kubernetes-validations:
+                - message: nat64Prefix must be a valid CIDR
+                  rule: self == '' || isCIDR(self)
               observedGeneration:
                 description: ObservedGeneration is the .metadata.generation this status
                   was computed from.
                 format: int64
                 type: integer
-              shardAddress:
+              shardAddressIPv4:
                 description: |-
-                  ShardAddress is this shard's own dedicated, publicly-routable IPv6
-                  address — every masquerade port this shard allocates lives within it,
-                  so any node can route a reply to the correct shard using ordinary
-                  unicast routing on this address alone, with no per-flow state lookup
-                  anywhere but the owning shard itself. Operator-supplied per shard
-                  today (no in-cluster derivation mechanism yet — the same gap
-                  BGPRouter.Spec.SRv6Locator/NodeID assignment has today).
+                  ShardAddressIPv4 is this shard's own dedicated, publicly-routable IPv4
+                  address — every NAT64 masquerade port this shard allocates lives within
+                  it, and it is the source an IPv4-only destination sees. Unlike
+                  ShardAddressIPv6, reachability for this address is not established by a
+                  BGPAdvertisement into the EVPN fabric: an IPv4 reply arrives from the
+                  internet, so the address must be attracted to this node by the underlay
+                  or upstream announcement instead. Publishing it here is what makes that
+                  operator prerequisite checkable.
+
+                  Empty means this shard does not perform NAT64.
                 type: string
                 x-kubernetes-validations:
-                - message: shardAddress must be a valid IPv6 address
-                  rule: self == '' || isIP(self)
+                - message: shardAddressIPv4 must be a valid IPv4 address
+                  rule: self == '' || (isIP(self) && ip(self).family() == 4)
+              shardAddressIPv6:
+                description: |-
+                  ShardAddressIPv6 is this shard's own dedicated, publicly-routable IPv6
+                  address — every NAT66 masquerade port this shard allocates lives within
+                  it, so any node can route a reply to the correct shard using ordinary
+                  unicast routing on this address alone, with no per-flow state lookup
+                  anywhere but the owning shard itself. Operator-supplied per shard today
+                  (no in-cluster derivation mechanism yet — the same gap
+                  BGPRouter.Spec.SRv6Locator/NodeID assignment has today).
+
+                  Empty means this shard does not perform IPv6-to-IPv6 translation.
+                type: string
+                x-kubernetes-validations:
+                - message: shardAddressIPv6 must be a valid IPv6 address
+                  rule: self == '' || (isIP(self) && ip(self).family() == 6)
               shardSID:
                 description: |-
                   ShardSID is this shard's own uSID locator — a real SRv6 uSID (unlike
-                  ShardAddress, a plain routable address), advertised into BGP the same
-                  way any other node-reachability route is (a /128 BGPAdvertisement, no
-                  VRFID/Function) so every other node learns a kernel SEG6 route toward
-                  it before installing a tenant VRF's default egress route against it.
+                  the ShardAddress fields, which are plain routable addresses),
+                  advertised into BGP the same way any other node-reachability route is
+                  (a /128 BGPAdvertisement, no VRFID/Function) so every other node learns
+                  a kernel SEG6 route toward it before installing a tenant VRF's egress
+                  route against it. One SID serves both families: which translation a
+                  packet gets is decided from the inner destination, not from a second
+                  SID.
                 type: string
                 x-kubernetes-validations:
                 - message: shardSID must be a valid IPv6 address
-                  rule: self == '' || isIP(self)
+                  rule: self == '' || (isIP(self) && ip(self).family() == 6)
             type: object
         type: object
     served: true

@@ -15,7 +15,7 @@ Package v1alpha1 contains API Schema definitions for the network.datumapis.com/v
 - [BGPPolicy](#bgppolicy)
 - [BGPRouter](#bgprouter)
 - [BGPVRFInstance](#bgpvrfinstance)
-- [NAT66Shard](#nat66shard)
+- [EgressShard](#egressshard)
 - [ServiceVIPBinding](#servicevipbinding)
 
 
@@ -916,6 +916,91 @@ _Appears in:_
 | `iPv6PrefixAdvertisement` | EVPNRouteTypeIPv6PrefixAdvertisement is Type-5: IPv6 Prefix Advertisement route.<br /> |
 
 
+#### EgressShard
+
+
+
+EgressShard marks a single node as a member of the sharded, stateful egress
+translation tier (galactic-nat) — a component deliberately kept off the
+ingress load-balancer's own consistent-hash ring (see NetworkGateway):
+tenant egress traffic (backend -> arbitrary internet destination) is a
+different traffic pattern from ingress (fixed VIP, fixed backend pool)
+and needs its own placement ring, own per-flow state, and its own
+self-routing return path, entirely independent of any NetworkGateway node.
+
+A shard serves one or both address families. NAT66 (IPv6 -> IPv6) and NAT64
+(IPv6 -> IPv4, RFC 6146) are the same function — stateful egress PAT with a
+VRF-scoped session table — over different families, so one shard object
+describes both rather than there being a second, near-duplicate kind.
+Status.ShardAddressIPv6 and Status.ShardAddressIPv4 are each set only for
+the family this shard actually translates; a shard serving only NAT66
+leaves the IPv4 field empty and behaves exactly as it did before NAT64
+existed.
+
+Every shard owns a dedicated, publicly-routable address per family it
+serves, and a flow's allocated masquerade port lives within it — so a reply
+is delivered to the correct shard by ordinary unicast routing alone, with
+no hashing or cross-shard lookup on the return path at all (the "any node
+can determine the owning shard from the tuple alone" property, satisfied by
+construction rather than by a replicated hash table).
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `network.datumapis.com/v1alpha1` | | |
+| `kind` _string_ | `EgressShard` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[EgressShardSpec](#egressshardspec)_ |  |  |  |
+| `status` _[EgressShardStatus](#egressshardstatus)_ |  |  |  |
+
+
+#### EgressShardSpec
+
+
+
+EgressShardSpec defines the desired state of an EgressShard.
+
+
+
+_Appears in:_
+- [EgressShard](#egressshard)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `targetRef` _[TargetRef](#targetref)_ | TargetRef identifies the Node this shard executes on. |  | Required: \{\} <br /> |
+
+
+#### EgressShardStatus
+
+
+
+EgressShardStatus defines the observed state of an EgressShard.
+
+Every field here is echoed from what the shard's datapath process was
+actually started with, not derived: the shard publishes what it is running,
+so a status that disagrees with an operator's intent is a visible
+misconfiguration rather than a silently reconciled one.
+
+
+
+_Appears in:_
+- [EgressShard](#egressshard)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `observedGeneration` _integer_ | ObservedGeneration is the .metadata.generation this status was computed from. |  |  |
+| `shardSID` _string_ | ShardSID is this shard's own uSID locator — a real SRv6 uSID (unlike<br />the ShardAddress fields, which are plain routable addresses),<br />advertised into BGP the same way any other node-reachability route is<br />(a /128 BGPAdvertisement, no VRFID/Function) so every other node learns<br />a kernel SEG6 route toward it before installing a tenant VRF's egress<br />route against it. One SID serves both families: which translation a<br />packet gets is decided from the inner destination, not from a second<br />SID. |  |  |
+| `shardAddressIPv6` _string_ | ShardAddressIPv6 is this shard's own dedicated, publicly-routable IPv6<br />address — every NAT66 masquerade port this shard allocates lives within<br />it, so any node can route a reply to the correct shard using ordinary<br />unicast routing on this address alone, with no per-flow state lookup<br />anywhere but the owning shard itself. Operator-supplied per shard today<br />(no in-cluster derivation mechanism yet — the same gap<br />BGPRouter.Spec.SRv6Locator/NodeID assignment has today).<br />Empty means this shard does not perform IPv6-to-IPv6 translation. |  |  |
+| `shardAddressIPv4` _string_ | ShardAddressIPv4 is this shard's own dedicated, publicly-routable IPv4<br />address — every NAT64 masquerade port this shard allocates lives within<br />it, and it is the source an IPv4-only destination sees. Unlike<br />ShardAddressIPv6, reachability for this address is not established by a<br />BGPAdvertisement into the EVPN fabric: an IPv4 reply arrives from the<br />internet, so the address must be attracted to this node by the underlay<br />or upstream announcement instead. Publishing it here is what makes that<br />operator prerequisite checkable.<br />Empty means this shard does not perform NAT64. |  |  |
+| `nat64Prefix` _string_ | NAT64Prefix is the IPv6 prefix whose synthesized addresses this shard<br />translates to IPv4 — one Datum-operated Network-Specific Prefix, shared<br />fabric-wide, never per-tenant. It is echoed here, rather than only<br />existing as process configuration, because it is the single fact DNS64<br />synthesis has to agree with: a shard translating for a different prefix<br />than the resolver synthesizes into is otherwise a silent blackhole.<br />Empty whenever ShardAddressIPv4 is empty. |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource. |  |  |
+
+
 #### ExtendedCommunitySet
 
 
@@ -968,76 +1053,6 @@ _Appears in:_
 | `warning-only` | MaxPrefixShutdownActionWarningOnly logs a warning but keeps the session up.<br /> |
 | `restart` | MaxPrefixShutdownActionRestart resets the BGP session when the limit is exceeded.<br /> |
 | `shutdown` | MaxPrefixShutdownActionShutdown tears down the BGP session when the limit is exceeded.<br /> |
-
-
-#### NAT66Shard
-
-
-
-NAT66Shard marks a single node as a member of the sharded, stateful NAT66
-egress tier (galactic-nat66) — a component deliberately kept off the
-ingress load-balancer's own consistent-hash ring (see NetworkGateway):
-tenant egress traffic (backend -> arbitrary internet destination) is a
-different traffic pattern from ingress (fixed VIP, fixed backend pool)
-and needs its own placement ring, own per-flow state, and its own
-self-routing return path, entirely independent of any NetworkGateway node.
-
-Every shard owns a dedicated, BGP-advertised public IPv6 address
-(Status.ShardAddress) that a flow's allocated masquerade port lives
-within — so a reply is delivered to the correct shard by ordinary
-unicast SRv6/BGP routing alone, with no hashing or cross-shard lookup on
-the return path at all (the "any node can determine the owning shard from
-the tuple alone" property, satisfied by construction rather than by a
-replicated hash table).
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `network.datumapis.com/v1alpha1` | | |
-| `kind` _string_ | `NAT66Shard` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[NAT66ShardSpec](#nat66shardspec)_ |  |  |  |
-| `status` _[NAT66ShardStatus](#nat66shardstatus)_ |  |  |  |
-
-
-#### NAT66ShardSpec
-
-
-
-NAT66ShardSpec defines the desired state of a NAT66Shard.
-
-
-
-_Appears in:_
-- [NAT66Shard](#nat66shard)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `targetRef` _[TargetRef](#targetref)_ | TargetRef identifies the Node this shard executes on. |  | Required: \{\} <br /> |
-
-
-#### NAT66ShardStatus
-
-
-
-NAT66ShardStatus defines the observed state of a NAT66Shard.
-
-
-
-_Appears in:_
-- [NAT66Shard](#nat66shard)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `observedGeneration` _integer_ | ObservedGeneration is the .metadata.generation this status was computed from. |  |  |
-| `shardAddress` _string_ | ShardAddress is this shard's own dedicated, publicly-routable IPv6<br />address — every masquerade port this shard allocates lives within it,<br />so any node can route a reply to the correct shard using ordinary<br />unicast routing on this address alone, with no per-flow state lookup<br />anywhere but the owning shard itself. Operator-supplied per shard<br />today (no in-cluster derivation mechanism yet — the same gap<br />BGPRouter.Spec.SRv6Locator/NodeID assignment has today). |  |  |
-| `shardSID` _string_ | ShardSID is this shard's own uSID locator — a real SRv6 uSID (unlike<br />ShardAddress, a plain routable address), advertised into BGP the same<br />way any other node-reachability route is (a /128 BGPAdvertisement, no<br />VRFID/Function) so every other node learns a kernel SEG6 route toward<br />it before installing a tenant VRF's default egress route against it. |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource. |  |  |
 
 
 #### NPTv6Spec
@@ -1313,19 +1328,27 @@ information (galactic-gateway's usidresolver.go), one object per
 (node, VIP, backend) triple; consumed by a per-node reconciler running
 inside galactic-router's tenant role.
 
-EgressKind decides which of two entirely different backend mechanisms
-this object drives, mirroring the same veth/tap fork the SRv6 uSID decap
-datapath already has (internal/plumbing/ebpf/usidmap's egress_kind field):
+EgressKind decides which of two backend mechanisms this object drives,
+mirroring the same veth/tap fork the SRv6 uSID decap datapath already
+has (internal/plumbing/ebpf/usidmap's egress_kind field). Both mechanisms
+now converge on the same VIP-boundary substitution
+(BackendAddress:BackendPort for VIPAddress:Port at the SRv6 uSID TC-BPF
+boundary, usid_ingress's inbound half / usid_egress's outbound half) —
+required for both, not just tap, since a decapsulated ingress packet is
+delivered into the owning tenant's own VRF routing table, which has no
+route to an address bound outside that VRF (found live: see galactic's
+ServiceVIPBindingReconciler doc comment):
 
-  - veth (container backend): the node binds VIPAddress on its own
-    galactic-vip0 dummy interface and the backend answers on it from
-    inside its own pod netns — internal/plumbing/vip's Bind/Unbind/Verify.
+  - veth (container backend): the node ALSO binds VIPAddress on its own
+    galactic-vip0 dummy interface (internal/plumbing/vip's
+    Bind/Unbind/Verify in galactic) — this alone does not deliver
+    anything to the backend pod (galactic-vip0 lives in the node's root
+    namespace, not the tenant's VRF), but still lets the node itself
+    verifiably answer on the VIP.
   - tap (VM backend): there is no guest-side configuration capability in
-    this repo by design (internal/cnitap's own doc comment) — instead the
-    node transparently substitutes VIPAddress:Port for
-    BackendAddress:BackendPort at the SRv6 uSID TC-BPF boundary
-    (usid_ingress's inbound half, a new usid_egress program's outbound
-    half), so the guest OS never needs to know the VIP exists at all.
+    this repo by design (internal/cnitap's own doc comment), so the
+    substitution above is this kind's *only* delivery mechanism — the
+    guest OS never needs to know the VIP exists at all.
 
 
 
@@ -1377,8 +1400,8 @@ _Appears in:_
 | `targetRef` _[TargetRef](#targetref)_ | TargetRef identifies the Node this binding applies to. |  | Required: \{\} <br /> |
 | `vipAddress` _string_ | VIPAddress is the service VIP the backend must be reachable on. |  | Required: \{\} <br /> |
 | `port` _integer_ | Port is the VIP-facing port traffic arrives on. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
-| `backendAddress` _string_ | BackendAddress is the backend's own real address (its pod-netns<br />address for a veth backend, or its actual guest-facing address for a<br />tap backend). Required only for EgressKindTap, where it is the<br />substitution target; a veth binding's backend answers on VIPAddress<br />itself once bound, so this field is ignored for that kind. |  |  |
-| `backendPort` _integer_ | BackendPort is the backend's own real port, paired with<br />BackendAddress for the tap-translation case. Ignored for veth. |  | Maximum: 65535 <br />Minimum: 1 <br /> |
+| `backendAddress` _string_ | BackendAddress is the backend's own real address (its pod-netns<br />address for a veth backend, or its actual guest-facing address for a<br />tap backend) — the VIP-boundary substitution target for both kinds<br />now (see EgressKind's own doc comment for why veth needs this too,<br />not just tap). +optional at the API level for the same reason<br />EgressKind itself carries no matching CEL requirement; the<br />reconciler validates it's set for either kind before doing anything. |  |  |
+| `backendPort` _integer_ | BackendPort is the backend's own real port, paired with<br />BackendAddress — required for both kinds, see that field's doc<br />comment. |  | Maximum: 65535 <br />Minimum: 1 <br /> |
 | `egressKind` _[ServiceVIPBindingEgressKind](#servicevipbindingegresskind)_ | EgressKind selects which backend mechanism this binding drives. |  | Enum: [veth tap] <br />Required: \{\} <br /> |
 
 
@@ -1410,7 +1433,7 @@ Supported values for kind: Node.
 
 _Appears in:_
 - [BGPRouterSpec](#bgprouterspec)
-- [NAT66ShardSpec](#nat66shardspec)
+- [EgressShardSpec](#egressshardspec)
 - [ServiceVIPBindingSpec](#servicevipbindingspec)
 
 | Field | Description | Default | Validation |
