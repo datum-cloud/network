@@ -5,8 +5,8 @@ import (
 )
 
 // NetworkEgressPolicy enables internet egress for a single tenant
-// VPC/VPCAttachment, served by the sharded, stateful galactic-nat66 tier
-// (see NAT66Shard). Unlike NetworkRule, it carries no VIP/backend/port:
+// VPC/VPCAttachment, served by the sharded, stateful galactic-nat tier
+// (see EgressShard). Unlike NetworkRule, it carries no VIP/backend/port:
 // egress is on or off for a (vpcRef, vpcAttachmentRef) pair,
 // existence-implies-enabled, not a per-flow rule — because the destination
 // of an egress flow is an arbitrary internet address, not a pre-configured
@@ -20,12 +20,12 @@ import (
 // accepted — see the Accepted condition.
 //
 // Presence of an accepted NetworkEgressPolicy resolves only *enablement*
-// (should this tenant's VRF get a default route toward the shared NAT66
-// tier at all) — unlike this type's original design (superseded), there is
-// no single "assigned gateway node" to compute or pin: any NAT66Shard may
+// (should this tenant's VRF get an egress route toward the shared
+// translation tier at all) — unlike this type's original design (superseded), there is
+// no single "assigned gateway node" to compute or pin: any EgressShard may
 // serve any tenant's flow, chosen by the shard-placement consistent-hash
 // ring (internal/maglev, keyed on (tenant VRFID, backend, destination) —
-// see NAT66Shard's doc comment), not by a per-tenant node assignment stored
+// see EgressShard's doc comment), not by a per-tenant node assignment stored
 // here. *Isolation* (preventing two tenants with colliding ULA source
 // addresses from colliding in the egress connection table) is a separate,
 // datapath-level concern resolved by tagging each flow with the VRFID
