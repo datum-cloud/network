@@ -91,6 +91,7 @@ tasks:
           crd/bgppolicies.network.datumapis.com
           crd/bgppeers.network.datumapis.com
           crd/bgpvrfinstances.network.datumapis.com
+          crd/egressshards.network.datumapis.com
           --timeout=60s
 
   deploy-bgp-routers:

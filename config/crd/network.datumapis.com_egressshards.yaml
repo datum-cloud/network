@@ -100,6 +100,13 @@ spec:
               service has not yet handed out is absent rather than blank-but-required, so
               a shard object exists from the moment its node is labelled and gains its
               identity afterwards.
+
+              Each is also write-once, and cannot be unassigned once assigned. The
+              datapath claims a reply by exact match against the address it translates to,
+              so reassigning one strands the return traffic of every flow already
+              established through it, with no drain and no dual-address grace period
+              available to cover the change. A shard holding the wrong address is deleted
+              and recreated instead, which breaks those flows at a moment someone chose.
             properties:
               nat64Prefix:
                 description: |-
@@ -111,11 +118,15 @@ spec:
 
                   Set together with ShardAddressIPv4 or not at all: an address with no
                   prefix has nothing to translate for, and a prefix with no address has
-                  nothing to translate into.
+                  nothing to translate into. Write-once for the same reason the addresses
+                  are: a shard that starts translating a different prefix blackholes every
+                  destination the resolver already synthesized into the old one.
                 type: string
                 x-kubernetes-validations:
                 - message: nat64Prefix must be a valid CIDR
                   rule: self == '' || isCIDR(self)
+                - message: nat64Prefix is immutable once assigned
+                  rule: self == oldSelf || oldSelf == ''
               shardAddressIPv4:
                 description: |-
                   ShardAddressIPv4 is the dedicated, publicly-routable IPv4 address this
@@ -130,6 +141,8 @@ spec:
                 x-kubernetes-validations:
                 - message: shardAddressIPv4 must be a valid IPv4 address
                   rule: self == '' || (isIP(self) && ip(self).family() == 4)
+                - message: shardAddressIPv4 is immutable once assigned
+                  rule: self == oldSelf || oldSelf == ''
               shardAddressIPv6:
                 description: |-
                   ShardAddressIPv6 is the dedicated, publicly-routable IPv6 address this
@@ -143,6 +156,8 @@ spec:
                 x-kubernetes-validations:
                 - message: shardAddressIPv6 must be a valid IPv6 address
                   rule: self == '' || (isIP(self) && ip(self).family() == 6)
+                - message: shardAddressIPv6 is immutable once assigned
+                  rule: self == oldSelf || oldSelf == ''
               targetRef:
                 description: TargetRef identifies the Node this shard executes on.
                 properties:
@@ -165,6 +180,17 @@ spec:
             - message: shardAddressIPv4 and nat64Prefix must be set together
               rule: (has(self.shardAddressIPv4) && size(self.shardAddressIPv4) > 0)
                 == (has(self.nat64Prefix) && size(self.nat64Prefix) > 0)
+            - message: shardAddressIPv6 cannot be unassigned once assigned
+              rule: '!(has(oldSelf.shardAddressIPv6) && size(oldSelf.shardAddressIPv6)
+                > 0) || (has(self.shardAddressIPv6) && size(self.shardAddressIPv6)
+                > 0)'
+            - message: shardAddressIPv4 cannot be unassigned once assigned
+              rule: '!(has(oldSelf.shardAddressIPv4) && size(oldSelf.shardAddressIPv4)
+                > 0) || (has(self.shardAddressIPv4) && size(self.shardAddressIPv4)
+                > 0)'
+            - message: nat64Prefix cannot be unassigned once assigned
+              rule: '!(has(oldSelf.nat64Prefix) && size(oldSelf.nat64Prefix) > 0)
+                || (has(self.nat64Prefix) && size(self.nat64Prefix) > 0)'
           status:
             description: |-
               EgressShardStatus defines the observed state of an EgressShard.

@@ -126,7 +126,17 @@ const (
 // a shard object exists from the moment its node is labelled and gains its
 // identity afterwards.
 //
+// Each is also write-once, and cannot be unassigned once assigned. The
+// datapath claims a reply by exact match against the address it translates to,
+// so reassigning one strands the return traffic of every flow already
+// established through it, with no drain and no dual-address grace period
+// available to cover the change. A shard holding the wrong address is deleted
+// and recreated instead, which breaks those flows at a moment someone chose.
+//
 // +kubebuilder:validation:XValidation:rule="(has(self.shardAddressIPv4) && size(self.shardAddressIPv4) > 0) == (has(self.nat64Prefix) && size(self.nat64Prefix) > 0)",message="shardAddressIPv4 and nat64Prefix must be set together"
+// +kubebuilder:validation:XValidation:rule="!(has(oldSelf.shardAddressIPv6) && size(oldSelf.shardAddressIPv6) > 0) || (has(self.shardAddressIPv6) && size(self.shardAddressIPv6) > 0)",message="shardAddressIPv6 cannot be unassigned once assigned"
+// +kubebuilder:validation:XValidation:rule="!(has(oldSelf.shardAddressIPv4) && size(oldSelf.shardAddressIPv4) > 0) || (has(self.shardAddressIPv4) && size(self.shardAddressIPv4) > 0)",message="shardAddressIPv4 cannot be unassigned once assigned"
+// +kubebuilder:validation:XValidation:rule="!(has(oldSelf.nat64Prefix) && size(oldSelf.nat64Prefix) > 0) || (has(self.nat64Prefix) && size(self.nat64Prefix) > 0)",message="nat64Prefix cannot be unassigned once assigned"
 type EgressShardSpec struct {
 	// TargetRef identifies the Node this shard executes on.
 	// +kubebuilder:validation:Required
@@ -141,6 +151,7 @@ type EgressShardSpec struct {
 	// Empty means no IPv6 address is assigned to this shard.
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="self == '' || (isIP(self) && ip(self).family() == 6)",message="shardAddressIPv6 must be a valid IPv6 address"
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf || oldSelf == ''",message="shardAddressIPv6 is immutable once assigned"
 	ShardAddressIPv6 string `json:"shardAddressIPv6,omitempty"`
 
 	// ShardAddressIPv4 is the dedicated, publicly-routable IPv4 address this
@@ -153,6 +164,7 @@ type EgressShardSpec struct {
 	// Empty means no IPv4 address is assigned to this shard.
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="self == '' || (isIP(self) && ip(self).family() == 4)",message="shardAddressIPv4 must be a valid IPv4 address"
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf || oldSelf == ''",message="shardAddressIPv4 is immutable once assigned"
 	ShardAddressIPv4 string `json:"shardAddressIPv4,omitempty"`
 
 	// NAT64Prefix is the IPv6 prefix whose synthesized addresses this shard
@@ -163,9 +175,12 @@ type EgressShardSpec struct {
 	//
 	// Set together with ShardAddressIPv4 or not at all: an address with no
 	// prefix has nothing to translate for, and a prefix with no address has
-	// nothing to translate into.
+	// nothing to translate into. Write-once for the same reason the addresses
+	// are: a shard that starts translating a different prefix blackholes every
+	// destination the resolver already synthesized into the old one.
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="self == '' || isCIDR(self)",message="nat64Prefix must be a valid CIDR"
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf || oldSelf == ''",message="nat64Prefix is immutable once assigned"
 	NAT64Prefix string `json:"nat64Prefix,omitempty"`
 }
 
