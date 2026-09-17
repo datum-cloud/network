@@ -16,10 +16,9 @@ import (
 // (IPv6 -> IPv4, RFC 6146) are the same function — stateful egress PAT with a
 // VRF-scoped session table — over different families, so one shard object
 // describes both rather than there being a second, near-duplicate kind.
-// Status.ShardAddressIPv6 and Status.ShardAddressIPv4 are each set only for
-// the family this shard actually translates; a shard serving only NAT66
-// leaves the IPv4 field empty and behaves exactly as it did before NAT64
-// existed.
+// Spec.ShardAddressIPv6 and Spec.ShardAddressIPv4 are each assigned only for
+// the family this shard translates; a shard with no IPv4 address performs no
+// NAT64.
 //
 // Every shard owns a dedicated, publicly-routable address per family it
 // serves, and a flow's allocated masquerade port lives within it — so a reply
@@ -27,6 +26,21 @@ import (
 // no hashing or cross-shard lookup on the return path at all (the "any node
 // can determine the owning shard from the tuple alone" property, satisfied by
 // construction rather than by a replicated hash table).
+//
+// A shard is told which addresses to translate to; it does not choose them.
+// The controller that owns a cell claims one address per family from the
+// addressing service and writes it into this spec, which keeps the
+// addressing-service credential off every translating node and keeps the
+// allocation request out of the path that attaches a workload. Status reports
+// what the node's datapath is actually programmed with, so an unclaimed
+// address, a stale datapath, and a divergence between the two are each
+// distinguishable.
+//
+// A shard names nothing that selects it. Which shards serve which consumer
+// intent is decided entirely by label selectors evaluated on the selecting
+// side (see the LabelEgressShard* keys), so no consumer-facing API appears in
+// this group and no reference points from a datapath resource back at the
+// resource that placed traffic on it.
 //
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
@@ -44,19 +58,123 @@ type EgressShard struct {
 	Status EgressShardStatus `json:"status,omitempty"`
 }
 
+// Label keys that select the EgressShards serving a given kind of egress.
+// They are matched by an ordinary label selector held on the selecting side,
+// which is what lets a consumer-facing API in another group place traffic on
+// these shards without this group referencing, importing, or depending on
+// that API. A shard carrying none of them is selected by nothing and serves
+// no traffic.
+//
+// The pool and cell labels are operator-set placement facts. The family
+// labels restate what this spec already assigns, because a selector matches
+// labels and cannot read a spec field; whoever writes the addresses writes
+// them.
+const (
+	// LabelEgressShardPool names the operator-defined pool this shard belongs
+	// to — the unit a selector picks, not an individual shard. Pools exist so
+	// that adding or draining a node changes no selector.
+	LabelEgressShardPool string = "network.datumapis.com/egress-pool"
+
+	// LabelEgressShardCell names the cell this shard translates in. Egress is
+	// realized per cell, so a selector that omits it selects shards in every
+	// cell and sends a consumer's traffic out of an arbitrary one.
+	LabelEgressShardCell string = "network.datumapis.com/egress-cell"
+
+	// LabelEgressShardIPv6 marks a shard that translates to IPv6, set to
+	// LabelValueEgressFamilyServed whenever Spec.ShardAddressIPv6 is assigned.
+	LabelEgressShardIPv6 string = "network.datumapis.com/egress-ipv6"
+
+	// LabelEgressShardIPv4 marks a shard that translates to IPv4, set to
+	// LabelValueEgressFamilyServed whenever Spec.ShardAddressIPv4 is assigned.
+	LabelEgressShardIPv4 string = "network.datumapis.com/egress-ipv4"
+
+	// LabelValueEgressFamilyServed is the only value the family labels carry.
+	// Absence, not a false value, means the family is not served: a selector
+	// requiring a family must match on presence so that a shard predating
+	// these labels never reads as serving one it does not.
+	LabelValueEgressFamilyServed string = "true"
+)
+
+// ConditionTypeProgrammed indicates whether this node's datapath is
+// translating with the addresses this spec assigns. It is distinct from
+// Ready, which reports only that the datapath is attached: an attached
+// datapath holding no assigned address, or a superseded one, drops or
+// mis-sources every flow while reporting Ready.
+const ConditionTypeProgrammed string = "Programmed"
+
+// Programmed sub-reasons — used as Programmed.Reason.
+const (
+	// ProgrammedReasonAddressesProgrammed indicates the datapath is
+	// translating with every address this spec assigns.
+	ProgrammedReasonAddressesProgrammed string = "AddressesProgrammed"
+
+	// ProgrammedReasonAddressUnassigned indicates this spec assigns no
+	// address for any family, so the shard has nothing to translate to and
+	// claims no packet.
+	ProgrammedReasonAddressUnassigned string = "AddressUnassigned"
+
+	// ProgrammedReasonProgrammingFailed indicates the shard could not program
+	// an assigned address into its datapath.
+	ProgrammedReasonProgrammingFailed string = "ProgrammingFailed"
+)
+
 // EgressShardSpec defines the desired state of an EgressShard.
+//
+// The address fields are written by the controller that owns the cell, not by
+// the shard and not by a consumer. Each is optional: an address the addressing
+// service has not yet handed out is absent rather than blank-but-required, so
+// a shard object exists from the moment its node is labelled and gains its
+// identity afterwards.
+//
+// +kubebuilder:validation:XValidation:rule="(has(self.shardAddressIPv4) && size(self.shardAddressIPv4) > 0) == (has(self.nat64Prefix) && size(self.nat64Prefix) > 0)",message="shardAddressIPv4 and nat64Prefix must be set together"
 type EgressShardSpec struct {
 	// TargetRef identifies the Node this shard executes on.
 	// +kubebuilder:validation:Required
 	TargetRef TargetRef `json:"targetRef"`
+
+	// ShardAddressIPv6 is the dedicated, publicly-routable IPv6 address this
+	// shard translates to — every NAT66 masquerade port it allocates lives
+	// within this address, so any node can route a reply to the owning shard
+	// using ordinary unicast routing on it alone, with no per-flow state
+	// lookup anywhere but that shard.
+	//
+	// Empty means no IPv6 address is assigned to this shard.
+	// +optional
+	// +kubebuilder:validation:XValidation:rule="self == '' || (isIP(self) && ip(self).family() == 6)",message="shardAddressIPv6 must be a valid IPv6 address"
+	ShardAddressIPv6 string `json:"shardAddressIPv6,omitempty"`
+
+	// ShardAddressIPv4 is the dedicated, publicly-routable IPv4 address this
+	// shard translates to, and the source an IPv4-only destination sees.
+	// Unlike ShardAddressIPv6, reachability for it is not established by a
+	// BGPAdvertisement into the EVPN fabric: an IPv4 reply arrives from the
+	// internet, so the underlay or an upstream announcement must attract this
+	// address to this node.
+	//
+	// Empty means no IPv4 address is assigned to this shard.
+	// +optional
+	// +kubebuilder:validation:XValidation:rule="self == '' || (isIP(self) && ip(self).family() == 4)",message="shardAddressIPv4 must be a valid IPv4 address"
+	ShardAddressIPv4 string `json:"shardAddressIPv4,omitempty"`
+
+	// NAT64Prefix is the IPv6 prefix whose synthesized addresses this shard
+	// translates to IPv4 — one Datum-operated Network-Specific Prefix, shared
+	// fabric-wide, never per-tenant. It must be the prefix the resolver
+	// synthesizes into; a shard translating for a different one is a
+	// blackhole with no symptom on either side.
+	//
+	// Set together with ShardAddressIPv4 or not at all: an address with no
+	// prefix has nothing to translate for, and a prefix with no address has
+	// nothing to translate into.
+	// +optional
+	// +kubebuilder:validation:XValidation:rule="self == '' || isCIDR(self)",message="nat64Prefix must be a valid CIDR"
+	NAT64Prefix string `json:"nat64Prefix,omitempty"`
 }
 
 // EgressShardStatus defines the observed state of an EgressShard.
 //
-// Every field here is echoed from what the shard's datapath process was
-// actually started with, not derived: the shard publishes what it is running,
-// so a status that disagrees with an operator's intent is a visible
-// misconfiguration rather than a silently reconciled one.
+// The address and prefix fields report what this node's datapath is programmed
+// with, not what it was asked for. A value here that disagrees with the spec is
+// a shard that has not converged; a value here with no counterpart in the spec
+// is a shard still translating to an address nothing assigns any more.
 type EgressShardStatus struct {
 	// ObservedGeneration is the .metadata.generation this status was computed from.
 	// +optional
@@ -70,50 +188,38 @@ type EgressShardStatus struct {
 	// route against it. One SID serves both families: which translation a
 	// packet gets is decided from the inner destination, not from a second
 	// SID.
+	//
+	// Still chosen by an operator and reported here rather than assigned in
+	// spec, unlike the addresses: a value another node already uses silently
+	// diverts that node's traffic, so the assignment belongs to the
+	// addressing service, which does not hand out identifiers of this kind
+	// yet.
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="self == '' || (isIP(self) && ip(self).family() == 6)",message="shardSID must be a valid IPv6 address"
 	ShardSID string `json:"shardSID,omitempty"`
 
-	// ShardAddressIPv6 is this shard's own dedicated, publicly-routable IPv6
-	// address — every NAT66 masquerade port this shard allocates lives within
-	// it, so any node can route a reply to the correct shard using ordinary
-	// unicast routing on this address alone, with no per-flow state lookup
-	// anywhere but the owning shard itself. Operator-supplied per shard today
-	// (no in-cluster derivation mechanism yet — the same gap
-	// BGPRouter.Spec.SRv6Locator/NodeID assignment has today).
-	//
-	// Empty means this shard does not perform IPv6-to-IPv6 translation.
+	// ShardAddressIPv6 is the IPv6 masquerade source this shard's datapath is
+	// programmed with. Empty means it translates no IPv6 flow.
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="self == '' || (isIP(self) && ip(self).family() == 6)",message="shardAddressIPv6 must be a valid IPv6 address"
 	ShardAddressIPv6 string `json:"shardAddressIPv6,omitempty"`
 
-	// ShardAddressIPv4 is this shard's own dedicated, publicly-routable IPv4
-	// address — every NAT64 masquerade port this shard allocates lives within
-	// it, and it is the source an IPv4-only destination sees. Unlike
-	// ShardAddressIPv6, reachability for this address is not established by a
-	// BGPAdvertisement into the EVPN fabric: an IPv4 reply arrives from the
-	// internet, so the address must be attracted to this node by the underlay
-	// or upstream announcement instead. Publishing it here is what makes that
-	// operator prerequisite checkable.
-	//
-	// Empty means this shard does not perform NAT64.
+	// ShardAddressIPv4 is the IPv4 masquerade source this shard's datapath is
+	// programmed with. Empty means it performs no NAT64. Publishing it is also
+	// what makes the underlay reachability prerequisite in
+	// Spec.ShardAddressIPv4 checkable.
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="self == '' || (isIP(self) && ip(self).family() == 4)",message="shardAddressIPv4 must be a valid IPv4 address"
 	ShardAddressIPv4 string `json:"shardAddressIPv4,omitempty"`
 
-	// NAT64Prefix is the IPv6 prefix whose synthesized addresses this shard
-	// translates to IPv4 — one Datum-operated Network-Specific Prefix, shared
-	// fabric-wide, never per-tenant. It is echoed here, rather than only
-	// existing as process configuration, because it is the single fact DNS64
-	// synthesis has to agree with: a shard translating for a different prefix
-	// than the resolver synthesizes into is otherwise a silent blackhole.
-	//
-	// Empty whenever ShardAddressIPv4 is empty.
+	// NAT64Prefix is the prefix this shard's datapath is programmed to
+	// translate. Empty whenever ShardAddressIPv4 is empty.
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="self == '' || isCIDR(self)",message="nat64Prefix must be a valid CIDR"
 	NAT64Prefix string `json:"nat64Prefix,omitempty"`
 
-	// Conditions contains the standard conditions for this resource.
+	// Conditions contains the standard conditions for this resource,
+	// including Programmed (see ConditionTypeProgrammed).
 	//
 	// +listType=map
 	// +listMapKey=type
