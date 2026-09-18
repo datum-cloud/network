@@ -134,7 +134,7 @@ spec:
         - script:
             content: |
               set +e
-              OUTPUT=$(kubectl apply -f - 2>&1 <<'EOF'
+              OUTPUT=$(kubectl apply -n "$NAMESPACE" -f - 2>&1 <<'EOF'
               apiVersion: network.datumapis.com/v1alpha1
               kind: EgressShard
               metadata:
@@ -150,7 +150,7 @@ spec:
               set -e
               if [ "$EXIT" -eq 0 ]; then
                 echo "ERROR: expected rejection of an IPv4 address with no NAT64 prefix but the resource was accepted"
-                kubectl delete egressshard e2e-egress-shard-unpaired 2>/dev/null || true
+                kubectl delete egressshard e2e-egress-shard-unpaired -n "$NAMESPACE" 2>/dev/null || true
                 exit 1
               fi
               case "$OUTPUT" in
@@ -205,7 +205,7 @@ spec:
         - script:
             content: |
               set +e
-              OUTPUT=$(kubectl apply -f - 2>&1 <<'EOF'
+              OUTPUT=$(kubectl apply -n "$NAMESPACE" -f - 2>&1 <<'EOF'
               apiVersion: network.datumapis.com/v1alpha1
               kind: EgressShard
               metadata:
@@ -223,7 +223,7 @@ spec:
               set -e
               if [ "$EXIT" -eq 0 ]; then
                 echo "ERROR: expected rejection of a claim reference with no project but the resource was accepted"
-                kubectl delete egressshard e2e-egress-shard-projectless 2>/dev/null || true
+                kubectl delete egressshard e2e-egress-shard-projectless -n "$NAMESPACE" 2>/dev/null || true
                 exit 1
               fi
               echo "OK: a claim reference with no project correctly rejected"
@@ -234,7 +234,7 @@ spec:
         - script:
             content: |
               set -e
-              kubectl apply -f - <<'EOF'
+              kubectl apply -n "$NAMESPACE" -f - <<'EOF'
               apiVersion: network.datumapis.com/v1alpha1
               kind: EgressShard
               metadata:
@@ -264,7 +264,7 @@ spec:
         - script:
             content: |
               set -e
-              kubectl apply -f - <<'EOF'
+              kubectl apply -n "$NAMESPACE" -f - <<'EOF'
               apiVersion: network.datumapis.com/v1alpha1
               kind: EgressShard
               metadata:
