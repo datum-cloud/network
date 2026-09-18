@@ -17,6 +17,52 @@ Package v1alpha1 contains API Schema definitions for the network.datumapis.com/v
 
 
 
+#### AddressClaimRef
+
+
+
+AddressClaimRef names the addressing-service claim an assigned address came
+from. It is a record, not a lookup: the addressing service is an aggregated
+API served on a project control-plane path and defines no CustomResourceDefinition,
+so no claim object exists in the cluster a shard runs in and nothing here
+resolves one. Reading it means addressing that project's control plane
+directly, with a credential a translating node is deliberately not given.
+
+Every field is a plain string and this group depends on no addressing-service
+type. The shape matches that service's own opaque cross-API reference, plus
+the project, because a claim is namespaced within a project and a namespace
+name alone does not identify one from outside.
+
+Populate it with the coordinates of the claim whose allocation produced the
+address written alongside it:
+
+	shardAddressIPv6: 2001:db8:f00d::100
+	shardAddressIPv6ClaimRef:
+	  project: datum-network-edge
+	  namespace: egress
+	  name: egress-shard-node-a-ipv6
+
+The claim cannot record this relationship itself. The addressing service
+overwrites a claim's spec.ownerRef on create with the identity that requested
+it, so a claim made by a cell controller is attributed to that controller's
+project rather than to the shard it was made for. Attribution therefore runs
+in this direction only, and an operator asking which claim holds a shard's
+address has this field or nothing.
+
+
+
+_Appears in:_
+- [EgressShardSpec](#egressshardspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiGroup` _string_ | APIGroup is the group of the claim resource. | ipam.miloapis.com | MinLength: 1 <br /> |
+| `kind` _string_ | Kind is the kind of the claim resource. | IPClaim | MinLength: 1 <br /> |
+| `project` _string_ | Project is the project whose control plane serves the claim. Required:<br />a claim is namespaced within a project, and this reference is read from<br />outside every project. |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `namespace` _string_ | Namespace is the namespace holding the claim within Project. |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `name` _string_ | Name is the name of the claim. The addressing service derives it from<br />the thing being addressed, so it is stable across a shard's lifetime and<br />is what a replacement finds again. |  | MinLength: 1 <br />Required: \{\} <br /> |
+
+
 #### EgressShard
 
 
@@ -93,6 +139,18 @@ established through it, with no drain and no dual-address grace period
 available to cover the change. A shard holding the wrong address is deleted
 and recreated instead, which breaks those flows at a moment someone chose.
 
+A claim reference alongside an address records where that address came from,
+and is write-once on the same terms. It is deliberately not required with an
+address, in either direction. Requiring an address before a claim reference
+would forbid recording a claim whose allocation has not resolved yet, which
+is the window a restarting controller most needs to see so that it finds the
+claim it already made instead of making a second one. Requiring a claim
+reference before an address would forbid an address allocated by hand, and
+whether such an address may be recorded here at all is an open migration
+question this validation would answer by fiat. An address with no reference
+is therefore accepted and is unattributable, which is a fact about the
+allocation rather than something a schema can repair.
+
 
 
 _Appears in:_
@@ -102,7 +160,9 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `targetRef` _[TargetRef](#targetref)_ | TargetRef identifies the Node this shard executes on. |  | Required: \{\} <br /> |
 | `shardAddressIPv6` _string_ | ShardAddressIPv6 is the dedicated, publicly-routable IPv6 address this<br />shard translates to — every NAT66 masquerade port it allocates lives<br />within this address, so any node can route a reply to the owning shard<br />using ordinary unicast routing on it alone, with no per-flow state<br />lookup anywhere but that shard.<br />Empty means no IPv6 address is assigned to this shard. |  |  |
+| `shardAddressIPv6ClaimRef` _[AddressClaimRef](#addressclaimref)_ | ShardAddressIPv6ClaimRef records the addressing-service claim<br />ShardAddressIPv6 came from — see AddressClaimRef. Set it in the same<br />write as the address whenever that address came from a claim.<br />Nothing here resolves it and no component reads it to program anything;<br />it is the only trail from a translating address back to the allocation<br />accountable for it. |  |  |
 | `shardAddressIPv4` _string_ | ShardAddressIPv4 is the dedicated, publicly-routable IPv4 address this<br />shard translates to, and the source an IPv4-only destination sees.<br />Unlike ShardAddressIPv6, reachability for it is not established by a<br />BGPAdvertisement into the EVPN fabric: an IPv4 reply arrives from the<br />internet, so the underlay or an upstream announcement must attract this<br />address to this node.<br />Empty means no IPv4 address is assigned to this shard. |  |  |
+| `shardAddressIPv4ClaimRef` _[AddressClaimRef](#addressclaimref)_ | ShardAddressIPv4ClaimRef records the addressing-service claim<br />ShardAddressIPv4 came from — see AddressClaimRef. Set it in the same<br />write as the address whenever that address came from a claim.<br />Nothing here resolves it and no component reads it to program anything;<br />it is the only trail from a translating address back to the allocation<br />accountable for it. |  |  |
 | `nat64Prefix` _string_ | NAT64Prefix is the IPv6 prefix whose synthesized addresses this shard<br />translates to IPv4 — one Datum-operated Network-Specific Prefix, shared<br />fabric-wide, never per-tenant. It must be the prefix the resolver<br />synthesizes into; a shard translating for a different one is a<br />blackhole with no symptom on either side.<br />Set together with ShardAddressIPv4 or not at all: an address with no<br />prefix has nothing to translate for, and a prefix with no address has<br />nothing to translate into. Write-once for the same reason the addresses<br />are: a shard that starts translating a different prefix blackholes every<br />destination the resolver already synthesized into the old one. |  |  |
 
 

@@ -4,10 +4,13 @@ metadata:
   name: egress-shard-address-immutability
 spec:
   description: >
-    Verify the CEL rules governing an EgressShard's assigned egress addresses:
-    a shard is accepted with no address, the cell controller's first write is
-    accepted, rewriting the same value is accepted, and changing or unassigning
-    an assigned value is rejected. Also verifies that status remains writable,
+    Verify the CEL rules governing an EgressShard's assigned egress addresses
+    and the claim references that attribute them: a shard is accepted with no
+    address, the cell controller's first write is accepted, rewriting the same
+    value is accepted, and changing or unassigning an assigned value is
+    rejected. Also verifies that a claim reference defaults its apiGroup and
+    kind, and that an address and a claim reference are independently
+    optional. Also verifies that status remains writable,
     since status reports what the datapath actually programmed and must still
     converge. Does not require any operator to be running — every rule under
     test is enforced by the API server alone.
@@ -41,7 +44,8 @@ spec:
             content: |
               set -e
               kubectl patch egressshard e2e-egress-shard -n "$NAMESPACE" --type=merge -p '
-              {"spec":{"shardAddressIPv6":"2001:db8:f00d::100","shardAddressIPv4":"198.51.100.7","nat64Prefix":"64:ff9b::/96"}}'
+              {"spec":{"shardAddressIPv6":"2001:db8:f00d::100","shardAddressIPv4":"198.51.100.7","nat64Prefix":"64:ff9b::/96",
+              "shardAddressIPv6ClaimRef":{"project":"e2e-project","namespace":"egress","name":"e2e-claim-ipv6"}}}'
               echo "OK: first assignment accepted"
         - assert:
             resource:
@@ -53,6 +57,12 @@ spec:
                 shardAddressIPv6: 2001:db8:f00d::100
                 shardAddressIPv4: 198.51.100.7
                 nat64Prefix: 64:ff9b::/96
+                shardAddressIPv6ClaimRef:
+                  apiGroup: ipam.miloapis.com
+                  kind: IPClaim
+                  project: e2e-project
+                  namespace: egress
+                  name: e2e-claim-ipv6
 
     - name: accept-same-value-rewrite
       try:
@@ -149,6 +159,127 @@ spec:
               esac
               echo "OK: an IPv4 address with no NAT64 prefix correctly rejected"
               echo "Server response: $OUTPUT"
+
+    - name: reject-claim-ref-change
+      try:
+        - script:
+            content: |
+              set +e
+              OUTPUT=$(kubectl patch egressshard e2e-egress-shard -n "$NAMESPACE" --type=merge -p '
+              {"spec":{"shardAddressIPv6ClaimRef":{"project":"e2e-project","namespace":"egress","name":"e2e-claim-other"}}}' 2>&1)
+              EXIT=$?
+              set -e
+              if [ "$EXIT" -eq 0 ]; then
+                echo "ERROR: expected rejection of a changed shardAddressIPv6ClaimRef but the patch was accepted"
+                exit 1
+              fi
+              case "$OUTPUT" in
+                *"immutable once assigned"*) ;;
+                *) echo "ERROR: rejected for the wrong reason: $OUTPUT"; exit 1 ;;
+              esac
+              echo "OK: changing an assigned claim reference correctly rejected"
+              echo "Server response: $OUTPUT"
+
+    - name: reject-claim-ref-unassignment
+      try:
+        - script:
+            content: |
+              set +e
+              OUTPUT=$(kubectl patch egressshard e2e-egress-shard -n "$NAMESPACE" --type=merge -p '
+              {"spec":{"shardAddressIPv6ClaimRef":null}}' 2>&1)
+              EXIT=$?
+              set -e
+              if [ "$EXIT" -eq 0 ]; then
+                echo "ERROR: expected rejection of an unassigned shardAddressIPv6ClaimRef but the patch was accepted"
+                exit 1
+              fi
+              case "$OUTPUT" in
+                *"cannot be unassigned once assigned"*) ;;
+                *) echo "ERROR: rejected for the wrong reason: $OUTPUT"; exit 1 ;;
+              esac
+              echo "OK: unassigning an assigned claim reference correctly rejected"
+              echo "Server response: $OUTPUT"
+
+    - name: reject-claim-ref-without-project
+      try:
+        - script:
+            content: |
+              set +e
+              OUTPUT=$(kubectl apply -f - 2>&1 <<'EOF'
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: EgressShard
+              metadata:
+                name: e2e-egress-shard-projectless
+              spec:
+                targetRef:
+                  kind: Node
+                  name: bgp-e2e-worker
+                shardAddressIPv6ClaimRef:
+                  namespace: egress
+                  name: e2e-claim-ipv6
+              EOF
+              )
+              EXIT=$?
+              set -e
+              if [ "$EXIT" -eq 0 ]; then
+                echo "ERROR: expected rejection of a claim reference with no project but the resource was accepted"
+                kubectl delete egressshard e2e-egress-shard-projectless 2>/dev/null || true
+                exit 1
+              fi
+              echo "OK: a claim reference with no project correctly rejected"
+              echo "Server response: $OUTPUT"
+
+    - name: default-claim-ref-group-and-kind
+      try:
+        - script:
+            content: |
+              set -e
+              kubectl apply -f - <<'EOF'
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: EgressShard
+              metadata:
+                name: e2e-egress-shard-defaults
+              spec:
+                targetRef:
+                  kind: Node
+                  name: bgp-e2e-worker
+                shardAddressIPv6ClaimRef:
+                  project: e2e-project
+                  namespace: egress
+                  name: e2e-claim-ipv6
+              EOF
+              GROUP=$(kubectl get egressshard e2e-egress-shard-defaults -n "$NAMESPACE" \
+                -o jsonpath='{.spec.shardAddressIPv6ClaimRef.apiGroup}')
+              KIND=$(kubectl get egressshard e2e-egress-shard-defaults -n "$NAMESPACE" \
+                -o jsonpath='{.spec.shardAddressIPv6ClaimRef.kind}')
+              kubectl delete egressshard e2e-egress-shard-defaults -n "$NAMESPACE"
+              if [ "$GROUP" != "ipam.miloapis.com" ] || [ "$KIND" != "IPClaim" ]; then
+                echo "ERROR: claim reference defaults = $GROUP/$KIND, want ipam.miloapis.com/IPClaim"
+                exit 1
+              fi
+              echo "OK: claim reference defaulted to $GROUP/$KIND"
+
+    - name: accept-claim-ref-with-no-address
+      try:
+        - script:
+            content: |
+              set -e
+              kubectl apply -f - <<'EOF'
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: EgressShard
+              metadata:
+                name: e2e-egress-shard-pending
+              spec:
+                targetRef:
+                  kind: Node
+                  name: bgp-e2e-worker
+                shardAddressIPv4ClaimRef:
+                  project: e2e-project
+                  namespace: egress
+                  name: e2e-claim-ipv4
+              EOF
+              kubectl delete egressshard e2e-egress-shard-pending -n "$NAMESPACE"
+              echo "OK: a claim reference whose allocation has not resolved yet is accepted"
 
     - name: accept-status-changes
       try:

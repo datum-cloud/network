@@ -25,6 +25,13 @@ func newTestEgressShard() *EgressShard {
 		Spec: EgressShardSpec{
 			TargetRef:        TargetRef{Kind: "Node", Name: "node-a"},
 			ShardAddressIPv6: "2001:db8:f00d::100",
+			ShardAddressIPv6ClaimRef: &AddressClaimRef{
+				APIGroup:  "ipam.miloapis.com",
+				Kind:      "IPClaim",
+				Project:   "datum-network-edge",
+				Namespace: "egress",
+				Name:      "egress-shard-node-a-ipv6",
+			},
 		},
 	}
 }
@@ -39,6 +46,7 @@ func TestEgressShardDeepCopy(t *testing.T) {
 	dup.Spec.ShardAddressIPv4 = "198.51.100.7"
 	dup.Spec.NAT64Prefix = "64:ff9b::/96"
 	dup.Labels[LabelEgressShardPool] = "dedicated-public"
+	dup.Spec.ShardAddressIPv6ClaimRef.Name = "some-other-claim"
 	dup.Status.Conditions = append(dup.Status.Conditions, metav1.Condition{Type: ConditionTypeProgrammed})
 
 	if orig.Spec.ShardAddressIPv6 != "2001:db8:f00d::100" {
@@ -52,6 +60,9 @@ func TestEgressShardDeepCopy(t *testing.T) {
 	}
 	if orig.Labels[LabelEgressShardPool] != "shared-public" {
 		t.Errorf("pool label mutated: got %q", orig.Labels[LabelEgressShardPool])
+	}
+	if orig.Spec.ShardAddressIPv6ClaimRef.Name != "egress-shard-node-a-ipv6" {
+		t.Errorf("claim ref aliased by DeepCopy: got %q", orig.Spec.ShardAddressIPv6ClaimRef.Name)
 	}
 	if len(orig.Status.Conditions) != 0 {
 		t.Errorf("Conditions mutated: got %v", orig.Status.Conditions)
@@ -96,8 +107,14 @@ func TestEgressShardJSONRoundTrip(t *testing.T) {
 		t.Fatalf("Unmarshal: %v", err)
 	}
 
-	if got.Spec != orig.Spec {
+	if got.Spec.ShardAddressIPv6 != orig.Spec.ShardAddressIPv6 ||
+		got.Spec.ShardAddressIPv4 != orig.Spec.ShardAddressIPv4 ||
+		got.Spec.NAT64Prefix != orig.Spec.NAT64Prefix ||
+		got.Spec.TargetRef != orig.Spec.TargetRef {
 		t.Errorf("Spec: got %+v, want %+v", got.Spec, orig.Spec)
+	}
+	if got.Spec.ShardAddressIPv6ClaimRef == nil || *got.Spec.ShardAddressIPv6ClaimRef != *orig.Spec.ShardAddressIPv6ClaimRef {
+		t.Errorf("ShardAddressIPv6ClaimRef: got %+v, want %+v", got.Spec.ShardAddressIPv6ClaimRef, orig.Spec.ShardAddressIPv6ClaimRef)
 	}
 	if got.Status.ShardSID != orig.Status.ShardSID {
 		t.Errorf("ShardSID: got %q, want %q", got.Status.ShardSID, orig.Status.ShardSID)
@@ -143,6 +160,23 @@ func TestEgressShardSpecFieldNames(t *testing.T) {
 	if _, ok := m["targetRef"]; !ok {
 		t.Error("expected \"targetRef\" key to be present")
 	}
+
+	claimRef, ok := m["shardAddressIPv6ClaimRef"].(map[string]any)
+	if !ok {
+		t.Fatalf("shardAddressIPv6ClaimRef: got %v, want an object", m["shardAddressIPv6ClaimRef"])
+	}
+	wantRef := map[string]string{
+		"apiGroup":  "ipam.miloapis.com",
+		"kind":      "IPClaim",
+		"project":   "datum-network-edge",
+		"namespace": "egress",
+		"name":      "egress-shard-node-a-ipv6",
+	}
+	for key, value := range wantRef {
+		if raw, ok := claimRef[key]; !ok || raw != value {
+			t.Errorf("shardAddressIPv6ClaimRef.%s: got %v, want %q", key, raw, value)
+		}
+	}
 }
 
 // TestEgressShardSpecOmitEmpty verifies that a shard with no address assigned
@@ -161,7 +195,10 @@ func TestEgressShardSpecOmitEmpty(t *testing.T) {
 		t.Fatalf("Unmarshal: %v", err)
 	}
 
-	for _, key := range []string{"shardAddressIPv6", "shardAddressIPv4", "nat64Prefix"} {
+	for _, key := range []string{
+		"shardAddressIPv6", "shardAddressIPv4", "nat64Prefix",
+		"shardAddressIPv6ClaimRef", "shardAddressIPv4ClaimRef",
+	} {
 		if _, ok := m[key]; ok {
 			t.Errorf("expected %q key to be absent when empty", key)
 		}

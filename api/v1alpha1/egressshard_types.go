@@ -118,6 +118,66 @@ const (
 	ProgrammedReasonProgrammingFailed string = "ProgrammingFailed"
 )
 
+// AddressClaimRef names the addressing-service claim an assigned address came
+// from. It is a record, not a lookup: the addressing service is an aggregated
+// API served on a project control-plane path and defines no CustomResourceDefinition,
+// so no claim object exists in the cluster a shard runs in and nothing here
+// resolves one. Reading it means addressing that project's control plane
+// directly, with a credential a translating node is deliberately not given.
+//
+// Every field is a plain string and this group depends on no addressing-service
+// type. The shape matches that service's own opaque cross-API reference, plus
+// the project, because a claim is namespaced within a project and a namespace
+// name alone does not identify one from outside.
+//
+// Populate it with the coordinates of the claim whose allocation produced the
+// address written alongside it:
+//
+//	shardAddressIPv6: 2001:db8:f00d::100
+//	shardAddressIPv6ClaimRef:
+//	  project: datum-network-edge
+//	  namespace: egress
+//	  name: egress-shard-node-a-ipv6
+//
+// The claim cannot record this relationship itself. The addressing service
+// overwrites a claim's spec.ownerRef on create with the identity that requested
+// it, so a claim made by a cell controller is attributed to that controller's
+// project rather than to the shard it was made for. Attribution therefore runs
+// in this direction only, and an operator asking which claim holds a shard's
+// address has this field or nothing.
+type AddressClaimRef struct {
+	// APIGroup is the group of the claim resource.
+	// +optional
+	// +kubebuilder:default="ipam.miloapis.com"
+	// +kubebuilder:validation:MinLength=1
+	APIGroup string `json:"apiGroup,omitempty"`
+
+	// Kind is the kind of the claim resource.
+	// +optional
+	// +kubebuilder:default="IPClaim"
+	// +kubebuilder:validation:MinLength=1
+	Kind string `json:"kind,omitempty"`
+
+	// Project is the project whose control plane serves the claim. Required:
+	// a claim is namespaced within a project, and this reference is read from
+	// outside every project.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Project string `json:"project"`
+
+	// Namespace is the namespace holding the claim within Project.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Namespace string `json:"namespace"`
+
+	// Name is the name of the claim. The addressing service derives it from
+	// the thing being addressed, so it is stable across a shard's lifetime and
+	// is what a replacement finds again.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+}
+
 // EgressShardSpec defines the desired state of an EgressShard.
 //
 // The address fields are written by the controller that owns the cell, not by
@@ -133,10 +193,24 @@ const (
 // available to cover the change. A shard holding the wrong address is deleted
 // and recreated instead, which breaks those flows at a moment someone chose.
 //
+// A claim reference alongside an address records where that address came from,
+// and is write-once on the same terms. It is deliberately not required with an
+// address, in either direction. Requiring an address before a claim reference
+// would forbid recording a claim whose allocation has not resolved yet, which
+// is the window a restarting controller most needs to see so that it finds the
+// claim it already made instead of making a second one. Requiring a claim
+// reference before an address would forbid an address allocated by hand, and
+// whether such an address may be recorded here at all is an open migration
+// question this validation would answer by fiat. An address with no reference
+// is therefore accepted and is unattributable, which is a fact about the
+// allocation rather than something a schema can repair.
+//
 // +kubebuilder:validation:XValidation:rule="(has(self.shardAddressIPv4) && size(self.shardAddressIPv4) > 0) == (has(self.nat64Prefix) && size(self.nat64Prefix) > 0)",message="shardAddressIPv4 and nat64Prefix must be set together"
 // +kubebuilder:validation:XValidation:rule="!(has(oldSelf.shardAddressIPv6) && size(oldSelf.shardAddressIPv6) > 0) || (has(self.shardAddressIPv6) && size(self.shardAddressIPv6) > 0)",message="shardAddressIPv6 cannot be unassigned once assigned"
 // +kubebuilder:validation:XValidation:rule="!(has(oldSelf.shardAddressIPv4) && size(oldSelf.shardAddressIPv4) > 0) || (has(self.shardAddressIPv4) && size(self.shardAddressIPv4) > 0)",message="shardAddressIPv4 cannot be unassigned once assigned"
 // +kubebuilder:validation:XValidation:rule="!(has(oldSelf.nat64Prefix) && size(oldSelf.nat64Prefix) > 0) || (has(self.nat64Prefix) && size(self.nat64Prefix) > 0)",message="nat64Prefix cannot be unassigned once assigned"
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.shardAddressIPv6ClaimRef) || has(self.shardAddressIPv6ClaimRef)",message="shardAddressIPv6ClaimRef cannot be unassigned once assigned"
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.shardAddressIPv4ClaimRef) || has(self.shardAddressIPv4ClaimRef)",message="shardAddressIPv4ClaimRef cannot be unassigned once assigned"
 type EgressShardSpec struct {
 	// TargetRef identifies the Node this shard executes on.
 	// +kubebuilder:validation:Required
@@ -154,6 +228,17 @@ type EgressShardSpec struct {
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf || oldSelf == ''",message="shardAddressIPv6 is immutable once assigned"
 	ShardAddressIPv6 string `json:"shardAddressIPv6,omitempty"`
 
+	// ShardAddressIPv6ClaimRef records the addressing-service claim
+	// ShardAddressIPv6 came from — see AddressClaimRef. Set it in the same
+	// write as the address whenever that address came from a claim.
+	//
+	// Nothing here resolves it and no component reads it to program anything;
+	// it is the only trail from a translating address back to the allocation
+	// accountable for it.
+	// +optional
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="shardAddressIPv6ClaimRef is immutable once assigned"
+	ShardAddressIPv6ClaimRef *AddressClaimRef `json:"shardAddressIPv6ClaimRef,omitempty"`
+
 	// ShardAddressIPv4 is the dedicated, publicly-routable IPv4 address this
 	// shard translates to, and the source an IPv4-only destination sees.
 	// Unlike ShardAddressIPv6, reachability for it is not established by a
@@ -166,6 +251,17 @@ type EgressShardSpec struct {
 	// +kubebuilder:validation:XValidation:rule="self == '' || (isIP(self) && ip(self).family() == 4)",message="shardAddressIPv4 must be a valid IPv4 address"
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf || oldSelf == ''",message="shardAddressIPv4 is immutable once assigned"
 	ShardAddressIPv4 string `json:"shardAddressIPv4,omitempty"`
+
+	// ShardAddressIPv4ClaimRef records the addressing-service claim
+	// ShardAddressIPv4 came from — see AddressClaimRef. Set it in the same
+	// write as the address whenever that address came from a claim.
+	//
+	// Nothing here resolves it and no component reads it to program anything;
+	// it is the only trail from a translating address back to the allocation
+	// accountable for it.
+	// +optional
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="shardAddressIPv4ClaimRef is immutable once assigned"
+	ShardAddressIPv4ClaimRef *AddressClaimRef `json:"shardAddressIPv4ClaimRef,omitempty"`
 
 	// NAT64Prefix is the IPv6 prefix whose synthesized addresses this shard
 	// translates to IPv4 — one Datum-operated Network-Specific Prefix, shared

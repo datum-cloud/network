@@ -107,6 +107,18 @@ spec:
               established through it, with no drain and no dual-address grace period
               available to cover the change. A shard holding the wrong address is deleted
               and recreated instead, which breaks those flows at a moment someone chose.
+
+              A claim reference alongside an address records where that address came from,
+              and is write-once on the same terms. It is deliberately not required with an
+              address, in either direction. Requiring an address before a claim reference
+              would forbid recording a claim whose allocation has not resolved yet, which
+              is the window a restarting controller most needs to see so that it finds the
+              claim it already made instead of making a second one. Requiring a claim
+              reference before an address would forbid an address allocated by hand, and
+              whether such an address may be recorded here at all is an open migration
+              question this validation would answer by fiat. An address with no reference
+              is therefore accepted and is unattributable, which is a fact about the
+              allocation rather than something a schema can repair.
             properties:
               nat64Prefix:
                 description: |-
@@ -143,6 +155,53 @@ spec:
                   rule: self == '' || (isIP(self) && ip(self).family() == 4)
                 - message: shardAddressIPv4 is immutable once assigned
                   rule: self == oldSelf || oldSelf == ''
+              shardAddressIPv4ClaimRef:
+                description: |-
+                  ShardAddressIPv4ClaimRef records the addressing-service claim
+                  ShardAddressIPv4 came from — see AddressClaimRef. Set it in the same
+                  write as the address whenever that address came from a claim.
+
+                  Nothing here resolves it and no component reads it to program anything;
+                  it is the only trail from a translating address back to the allocation
+                  accountable for it.
+                properties:
+                  apiGroup:
+                    default: ipam.miloapis.com
+                    description: APIGroup is the group of the claim resource.
+                    minLength: 1
+                    type: string
+                  kind:
+                    default: IPClaim
+                    description: Kind is the kind of the claim resource.
+                    minLength: 1
+                    type: string
+                  name:
+                    description: |-
+                      Name is the name of the claim. The addressing service derives it from
+                      the thing being addressed, so it is stable across a shard's lifetime and
+                      is what a replacement finds again.
+                    minLength: 1
+                    type: string
+                  namespace:
+                    description: Namespace is the namespace holding the claim within
+                      Project.
+                    minLength: 1
+                    type: string
+                  project:
+                    description: |-
+                      Project is the project whose control plane serves the claim. Required:
+                      a claim is namespaced within a project, and this reference is read from
+                      outside every project.
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                - namespace
+                - project
+                type: object
+                x-kubernetes-validations:
+                - message: shardAddressIPv4ClaimRef is immutable once assigned
+                  rule: self == oldSelf
               shardAddressIPv6:
                 description: |-
                   ShardAddressIPv6 is the dedicated, publicly-routable IPv6 address this
@@ -158,6 +217,53 @@ spec:
                   rule: self == '' || (isIP(self) && ip(self).family() == 6)
                 - message: shardAddressIPv6 is immutable once assigned
                   rule: self == oldSelf || oldSelf == ''
+              shardAddressIPv6ClaimRef:
+                description: |-
+                  ShardAddressIPv6ClaimRef records the addressing-service claim
+                  ShardAddressIPv6 came from — see AddressClaimRef. Set it in the same
+                  write as the address whenever that address came from a claim.
+
+                  Nothing here resolves it and no component reads it to program anything;
+                  it is the only trail from a translating address back to the allocation
+                  accountable for it.
+                properties:
+                  apiGroup:
+                    default: ipam.miloapis.com
+                    description: APIGroup is the group of the claim resource.
+                    minLength: 1
+                    type: string
+                  kind:
+                    default: IPClaim
+                    description: Kind is the kind of the claim resource.
+                    minLength: 1
+                    type: string
+                  name:
+                    description: |-
+                      Name is the name of the claim. The addressing service derives it from
+                      the thing being addressed, so it is stable across a shard's lifetime and
+                      is what a replacement finds again.
+                    minLength: 1
+                    type: string
+                  namespace:
+                    description: Namespace is the namespace holding the claim within
+                      Project.
+                    minLength: 1
+                    type: string
+                  project:
+                    description: |-
+                      Project is the project whose control plane serves the claim. Required:
+                      a claim is namespaced within a project, and this reference is read from
+                      outside every project.
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                - namespace
+                - project
+                type: object
+                x-kubernetes-validations:
+                - message: shardAddressIPv6ClaimRef is immutable once assigned
+                  rule: self == oldSelf
               targetRef:
                 description: TargetRef identifies the Node this shard executes on.
                 properties:
@@ -191,6 +297,10 @@ spec:
             - message: nat64Prefix cannot be unassigned once assigned
               rule: '!(has(oldSelf.nat64Prefix) && size(oldSelf.nat64Prefix) > 0)
                 || (has(self.nat64Prefix) && size(self.nat64Prefix) > 0)'
+            - message: shardAddressIPv6ClaimRef cannot be unassigned once assigned
+              rule: '!has(oldSelf.shardAddressIPv6ClaimRef) || has(self.shardAddressIPv6ClaimRef)'
+            - message: shardAddressIPv4ClaimRef cannot be unassigned once assigned
+              rule: '!has(oldSelf.shardAddressIPv4ClaimRef) || has(self.shardAddressIPv4ClaimRef)'
           status:
             description: |-
               EgressShardStatus defines the observed state of an EgressShard.
