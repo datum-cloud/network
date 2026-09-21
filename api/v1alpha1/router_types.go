@@ -64,11 +64,12 @@ type BGPRouterSpec struct {
 	// +optional
 	SRv6Locator string `json:"srv6Locator,omitempty"`
 
-	// NodeID is this router's 8-bit slot within its PoP's SRv6Locator block,
+	// NodeID is this router's 16-bit slot within its PoP's SRv6Locator block,
 	// used for RFC 9800 NEXT-CSID compression. Unique within the PoP.
-	// Values 0 and 255 are reserved.
+	// The uSID carrier format reserves 0x0000 and 0xE000-0xFFFF (the latter is
+	// Function space, not Node-ID space), leaving 0x0001-0xDFFF assignable.
 	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=254
+	// +kubebuilder:validation:Maximum=57343
 	// +optional
 	NodeID int32 `json:"nodeID,omitempty"`
 
