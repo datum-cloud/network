@@ -74,6 +74,52 @@ _Appears in:_
 | `contains` | ASPathMatchContains requires the pattern to match a substring of the AS path.<br /> |
 
 
+#### AddressClaimRef
+
+
+
+AddressClaimRef names the addressing-service claim an assigned address came
+from. It is a record, not a lookup: the addressing service is an aggregated
+API served on a project control-plane path and defines no CustomResourceDefinition,
+so no claim object exists in the cluster a shard runs in and nothing here
+resolves one. Reading it means addressing that project's control plane
+directly, with a credential a translating node is deliberately not given.
+
+Every field is a plain string and this group depends on no addressing-service
+type. The shape matches that service's own opaque cross-API reference, plus
+the project, because a claim is namespaced within a project and a namespace
+name alone does not identify one from outside.
+
+Populate it with the coordinates of the claim whose allocation produced the
+address written alongside it:
+
+	shardAddressIPv6: 2001:db8:f00d::100
+	shardAddressIPv6ClaimRef:
+	  project: datum-network-edge
+	  namespace: egress
+	  name: egress-shard-node-a-ipv6
+
+The claim cannot record this relationship itself. The addressing service
+overwrites a claim's spec.ownerRef on create with the identity that requested
+it, so a claim made by a cell controller is attributed to that controller's
+project rather than to the shard it was made for. Attribution therefore runs
+in this direction only, and an operator asking which claim holds a shard's
+address has this field or nothing.
+
+
+
+_Appears in:_
+- [EgressShardSpec](#egressshardspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiGroup` _string_ | APIGroup is the group of the claim resource. | ipam.miloapis.com | MinLength: 1 <br /> |
+| `kind` _string_ | Kind is the kind of the claim resource. | IPClaim | MinLength: 1 <br /> |
+| `project` _string_ | Project is the project whose control plane serves the claim. Required:<br />a claim is namespaced within a project, and this reference is read from<br />outside every project. |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `namespace` _string_ | Namespace is the namespace holding the claim within Project. |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `name` _string_ | Name is the name of the claim. The addressing service derives it from<br />the thing being addressed, so it is stable across a shard's lifetime and<br />is what a replacement finds again. |  | MinLength: 1 <br />Required: \{\} <br /> |
+
+
 #### AddressFamily
 
 
@@ -932,10 +978,9 @@ A shard serves one or both address families. NAT66 (IPv6 -> IPv6) and NAT64
 (IPv6 -> IPv4, RFC 6146) are the same function — stateful egress PAT with a
 VRF-scoped session table — over different families, so one shard object
 describes both rather than there being a second, near-duplicate kind.
-Status.ShardAddressIPv6 and Status.ShardAddressIPv4 are each set only for
-the family this shard actually translates; a shard serving only NAT66
-leaves the IPv4 field empty and behaves exactly as it did before NAT64
-existed.
+Spec.ShardAddressIPv6 and Spec.ShardAddressIPv4 are each assigned only for
+the family this shard translates; a shard with no IPv4 address performs no
+NAT64.
 
 Every shard owns a dedicated, publicly-routable address per family it
 serves, and a flow's allocated masquerade port lives within it — so a reply
@@ -943,6 +988,21 @@ is delivered to the correct shard by ordinary unicast routing alone, with
 no hashing or cross-shard lookup on the return path at all (the "any node
 can determine the owning shard from the tuple alone" property, satisfied by
 construction rather than by a replicated hash table).
+
+A shard is told which addresses to translate to; it does not choose them.
+The controller that owns a cell claims one address per family from the
+addressing service and writes it into this spec, which keeps the
+addressing-service credential off every translating node and keeps the
+allocation request out of the path that attaches a workload. Status reports
+what the node's datapath is actually programmed with, so an unclaimed
+address, a stale datapath, and a divergence between the two are each
+distinguishable.
+
+A shard names nothing that selects it. Which shards serve which consumer
+intent is decided entirely by label selectors evaluated on the selecting
+side (see the LabelEgressShard* keys), so no consumer-facing API appears in
+this group and no reference points from a datapath resource back at the
+resource that placed traffic on it.
 
 
 
@@ -965,6 +1025,31 @@ construction rather than by a replicated hash table).
 
 EgressShardSpec defines the desired state of an EgressShard.
 
+The address fields are written by the controller that owns the cell, not by
+the shard and not by a consumer. Each is optional: an address the addressing
+service has not yet handed out is absent rather than blank-but-required, so
+a shard object exists from the moment its node is labelled and gains its
+identity afterwards.
+
+Each is also write-once, and cannot be unassigned once assigned. The
+datapath claims a reply by exact match against the address it translates to,
+so reassigning one strands the return traffic of every flow already
+established through it, with no drain and no dual-address grace period
+available to cover the change. A shard holding the wrong address is deleted
+and recreated instead, which breaks those flows at a moment someone chose.
+
+A claim reference alongside an address records where that address came from,
+and is write-once on the same terms. It is deliberately not required with an
+address, in either direction. Requiring an address before a claim reference
+would forbid recording a claim whose allocation has not resolved yet, which
+is the window a restarting controller most needs to see so that it finds the
+claim it already made instead of making a second one. Requiring a claim
+reference before an address would forbid an address allocated by hand, and
+whether such an address may be recorded here at all is an open migration
+question this validation would answer by fiat. An address with no reference
+is therefore accepted and is unattributable, which is a fact about the
+allocation rather than something a schema can repair.
+
 
 
 _Appears in:_
@@ -973,6 +1058,11 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `targetRef` _[TargetRef](#targetref)_ | TargetRef identifies the Node this shard executes on. |  | Required: \{\} <br /> |
+| `shardAddressIPv6` _string_ | ShardAddressIPv6 is the dedicated, publicly-routable IPv6 address this<br />shard translates to — every NAT66 masquerade port it allocates lives<br />within this address, so any node can route a reply to the owning shard<br />using ordinary unicast routing on it alone, with no per-flow state<br />lookup anywhere but that shard.<br />Empty means no IPv6 address is assigned to this shard. |  |  |
+| `shardAddressIPv6ClaimRef` _[AddressClaimRef](#addressclaimref)_ | ShardAddressIPv6ClaimRef records the addressing-service claim<br />ShardAddressIPv6 came from — see AddressClaimRef. Set it in the same<br />write as the address whenever that address came from a claim.<br />Nothing here resolves it and no component reads it to program anything;<br />it is the only trail from a translating address back to the allocation<br />accountable for it. |  |  |
+| `shardAddressIPv4` _string_ | ShardAddressIPv4 is the dedicated, publicly-routable IPv4 address this<br />shard translates to, and the source an IPv4-only destination sees.<br />Unlike ShardAddressIPv6, reachability for it is not established by a<br />BGPAdvertisement into the EVPN fabric: an IPv4 reply arrives from the<br />internet, so the underlay or an upstream announcement must attract this<br />address to this node.<br />Empty means no IPv4 address is assigned to this shard. |  |  |
+| `shardAddressIPv4ClaimRef` _[AddressClaimRef](#addressclaimref)_ | ShardAddressIPv4ClaimRef records the addressing-service claim<br />ShardAddressIPv4 came from — see AddressClaimRef. Set it in the same<br />write as the address whenever that address came from a claim.<br />Nothing here resolves it and no component reads it to program anything;<br />it is the only trail from a translating address back to the allocation<br />accountable for it. |  |  |
+| `nat64Prefix` _string_ | NAT64Prefix is the IPv6 prefix whose synthesized addresses this shard<br />translates to IPv4 — one Datum-operated Network-Specific Prefix, shared<br />fabric-wide, never per-tenant. It must be the prefix the resolver<br />synthesizes into; a shard translating for a different one is a<br />blackhole with no symptom on either side.<br />Set together with ShardAddressIPv4 or not at all: an address with no<br />prefix has nothing to translate for, and a prefix with no address has<br />nothing to translate into. Write-once for the same reason the addresses<br />are: a shard that starts translating a different prefix blackholes every<br />destination the resolver already synthesized into the old one. |  |  |
 
 
 #### EgressShardStatus
@@ -981,10 +1071,10 @@ _Appears in:_
 
 EgressShardStatus defines the observed state of an EgressShard.
 
-Every field here is echoed from what the shard's datapath process was
-actually started with, not derived: the shard publishes what it is running,
-so a status that disagrees with an operator's intent is a visible
-misconfiguration rather than a silently reconciled one.
+The address and prefix fields report what this node's datapath is programmed
+with, not what it was asked for. A value here that disagrees with the spec is
+a shard that has not converged; a value here with no counterpart in the spec
+is a shard still translating to an address nothing assigns any more.
 
 
 
@@ -994,11 +1084,11 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `observedGeneration` _integer_ | ObservedGeneration is the .metadata.generation this status was computed from. |  |  |
-| `shardSID` _string_ | ShardSID is this shard's own uSID locator — a real SRv6 uSID (unlike<br />the ShardAddress fields, which are plain routable addresses),<br />advertised into BGP the same way any other node-reachability route is<br />(a /128 BGPAdvertisement, no VRFID/Function) so every other node learns<br />a kernel SEG6 route toward it before installing a tenant VRF's egress<br />route against it. One SID serves both families: which translation a<br />packet gets is decided from the inner destination, not from a second<br />SID. |  |  |
-| `shardAddressIPv6` _string_ | ShardAddressIPv6 is this shard's own dedicated, publicly-routable IPv6<br />address — every NAT66 masquerade port this shard allocates lives within<br />it, so any node can route a reply to the correct shard using ordinary<br />unicast routing on this address alone, with no per-flow state lookup<br />anywhere but the owning shard itself. Operator-supplied per shard today<br />(no in-cluster derivation mechanism yet — the same gap<br />BGPRouter.Spec.SRv6Locator/NodeID assignment has today).<br />Empty means this shard does not perform IPv6-to-IPv6 translation. |  |  |
-| `shardAddressIPv4` _string_ | ShardAddressIPv4 is this shard's own dedicated, publicly-routable IPv4<br />address — every NAT64 masquerade port this shard allocates lives within<br />it, and it is the source an IPv4-only destination sees. Unlike<br />ShardAddressIPv6, reachability for this address is not established by a<br />BGPAdvertisement into the EVPN fabric: an IPv4 reply arrives from the<br />internet, so the address must be attracted to this node by the underlay<br />or upstream announcement instead. Publishing it here is what makes that<br />operator prerequisite checkable.<br />Empty means this shard does not perform NAT64. |  |  |
-| `nat64Prefix` _string_ | NAT64Prefix is the IPv6 prefix whose synthesized addresses this shard<br />translates to IPv4 — one Datum-operated Network-Specific Prefix, shared<br />fabric-wide, never per-tenant. It is echoed here, rather than only<br />existing as process configuration, because it is the single fact DNS64<br />synthesis has to agree with: a shard translating for a different prefix<br />than the resolver synthesizes into is otherwise a silent blackhole.<br />Empty whenever ShardAddressIPv4 is empty. |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource. |  |  |
+| `shardSID` _string_ | ShardSID is this shard's own uSID locator — a real SRv6 uSID (unlike<br />the ShardAddress fields, which are plain routable addresses),<br />advertised into BGP the same way any other node-reachability route is<br />(a /128 BGPAdvertisement, no VRFID/Function) so every other node learns<br />a kernel SEG6 route toward it before installing a tenant VRF's egress<br />route against it. One SID serves both families: which translation a<br />packet gets is decided from the inner destination, not from a second<br />SID.<br />Still chosen by an operator and reported here rather than assigned in<br />spec, unlike the addresses: a value another node already uses silently<br />diverts that node's traffic, so the assignment belongs to the<br />addressing service, which does not hand out identifiers of this kind<br />yet. |  |  |
+| `shardAddressIPv6` _string_ | ShardAddressIPv6 is the IPv6 masquerade source this shard's datapath is<br />programmed with. Empty means it translates no IPv6 flow. |  |  |
+| `shardAddressIPv4` _string_ | ShardAddressIPv4 is the IPv4 masquerade source this shard's datapath is<br />programmed with. Empty means it performs no NAT64. Publishing it is also<br />what makes the underlay reachability prerequisite in<br />Spec.ShardAddressIPv4 checkable. |  |  |
+| `nat64Prefix` _string_ | NAT64Prefix is the prefix this shard's datapath is programmed to<br />translate. Empty whenever ShardAddressIPv4 is empty. |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource,<br />including Programmed (see ConditionTypeProgrammed). |  |  |
 
 
 #### ExtendedCommunitySet
