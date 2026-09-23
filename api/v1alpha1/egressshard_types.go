@@ -205,6 +205,7 @@ type AddressClaimRef struct {
 // is therefore accepted and is unattributable, which is a fact about the
 // allocation rather than something a schema can repair.
 //
+// +kubebuilder:validation:XValidation:rule="!(has(oldSelf.shardSID) && size(oldSelf.shardSID) > 0) || (has(self.shardSID) && size(self.shardSID) > 0)",message="shardSID cannot be unassigned once assigned"
 // +kubebuilder:validation:XValidation:rule="(has(self.shardAddressIPv4) && size(self.shardAddressIPv4) > 0) == (has(self.nat64Prefix) && size(self.nat64Prefix) > 0)",message="shardAddressIPv4 and nat64Prefix must be set together"
 // +kubebuilder:validation:XValidation:rule="!(has(oldSelf.shardAddressIPv6) && size(oldSelf.shardAddressIPv6) > 0) || (has(self.shardAddressIPv6) && size(self.shardAddressIPv6) > 0)",message="shardAddressIPv6 cannot be unassigned once assigned"
 // +kubebuilder:validation:XValidation:rule="!(has(oldSelf.shardAddressIPv4) && size(oldSelf.shardAddressIPv4) > 0) || (has(self.shardAddressIPv4) && size(self.shardAddressIPv4) > 0)",message="shardAddressIPv4 cannot be unassigned once assigned"
@@ -215,6 +216,24 @@ type EgressShardSpec struct {
 	// TargetRef identifies the Node this shard executes on.
 	// +kubebuilder:validation:Required
 	TargetRef TargetRef `json:"targetRef"`
+
+	// ShardSID is this shard's own SRv6 uSID, the outer destination a tenant
+	// VRF's egress route encapsulates toward. The shard claims a packet by its
+	// Block and Node-ID alone, the Argument carrying the tenant, so those 64
+	// bits must be reserved for this shard and disjoint from every BGPRouter
+	// locator: a value another node already uses silently diverts that node's
+	// traffic.
+	//
+	// Write-once for the same reason the addresses are: every established
+	// flow's reply is re-encapsulated from this SID, so changing it strands
+	// them. Operator-chosen until the addressing service hands out identifiers
+	// of this kind.
+	//
+	// Empty means no SID is assigned yet, and the shard claims no packet.
+	// +optional
+	// +kubebuilder:validation:XValidation:rule="self == '' || (isIP(self) && ip(self).family() == 6)",message="shardSID must be a valid IPv6 address"
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf || oldSelf == ''",message="shardSID is immutable once assigned"
+	ShardSID string `json:"shardSID,omitempty"`
 
 	// ShardAddressIPv6 is the dedicated, publicly-routable IPv6 address this
 	// shard translates to — every NAT66 masquerade port it allocates lives
@@ -300,11 +319,8 @@ type EgressShardStatus struct {
 	// packet gets is decided from the inner destination, not from a second
 	// SID.
 	//
-	// Still chosen by an operator and reported here rather than assigned in
-	// spec, unlike the addresses: a value another node already uses silently
-	// diverts that node's traffic, so the assignment belongs to the
-	// addressing service, which does not hand out identifiers of this kind
-	// yet.
+	// Reports the SID this node's datapath is programmed with, from
+	// Spec.ShardSID.
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="self == '' || (isIP(self) && ip(self).family() == 6)",message="shardSID must be a valid IPv6 address"
 	ShardSID string `json:"shardSID,omitempty"`

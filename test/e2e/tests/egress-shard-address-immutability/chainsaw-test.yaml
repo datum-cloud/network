@@ -4,8 +4,8 @@ metadata:
   name: egress-shard-address-immutability
 spec:
   description: >
-    Verify the CEL rules governing an EgressShard's assigned egress addresses
-    and the claim references that attribute them: a shard is accepted with no
+    Verify the CEL rules governing an EgressShard's assigned shard SID, egress
+    addresses, and the claim references that attribute them: a shard is accepted with no
     address, the cell controller's first write is accepted, rewriting the same
     value is accepted, and changing or unassigning an assigned value is
     rejected. Also verifies that a claim reference defaults its apiGroup and
@@ -44,7 +44,7 @@ spec:
             content: |
               set -e
               kubectl patch egressshard e2e-egress-shard -n "$NAMESPACE" --type=merge -p '
-              {"spec":{"shardAddressIPv6":"2001:db8:f00d::100","shardAddressIPv4":"198.51.100.7","nat64Prefix":"64:ff9b::/96",
+              {"spec":{"shardSID":"2001:db8:ff01:2001::","shardAddressIPv6":"2001:db8:f00d::100","shardAddressIPv4":"198.51.100.7","nat64Prefix":"64:ff9b::/96",
               "shardAddressIPv6ClaimRef":{"project":"e2e-project","namespace":"egress","name":"e2e-claim-ipv6"}}}'
               echo "OK: first assignment accepted"
         - assert:
@@ -54,6 +54,7 @@ spec:
               metadata:
                 name: e2e-egress-shard
               spec:
+                shardSID: "2001:db8:ff01:2001::"
                 shardAddressIPv6: 2001:db8:f00d::100
                 shardAddressIPv4: 198.51.100.7
                 nat64Prefix: 64:ff9b::/96
@@ -91,6 +92,77 @@ spec:
                 *) echo "ERROR: rejected for the wrong reason: $OUTPUT"; exit 1 ;;
               esac
               echo "OK: changing an assigned shardAddressIPv6 correctly rejected"
+              echo "Server response: $OUTPUT"
+
+    - name: reject-sid-change
+      try:
+        - script:
+            content: |
+              set +e
+              OUTPUT=$(kubectl patch egressshard e2e-egress-shard -n "$NAMESPACE" --type=merge -p '
+              {"spec":{"shardSID":"2001:db8:ff01:2002::"}}' 2>&1)
+              EXIT=$?
+              set -e
+              if [ "$EXIT" -eq 0 ]; then
+                echo "ERROR: expected rejection of a changed shardSID but the patch was accepted"
+                exit 1
+              fi
+              case "$OUTPUT" in
+                *"immutable once assigned"*) ;;
+                *) echo "ERROR: rejected for the wrong reason: $OUTPUT"; exit 1 ;;
+              esac
+              echo "OK: changing an assigned shardSID correctly rejected"
+              echo "Server response: $OUTPUT"
+
+    - name: reject-sid-unassignment
+      try:
+        - script:
+            content: |
+              set +e
+              OUTPUT=$(kubectl patch egressshard e2e-egress-shard -n "$NAMESPACE" --type=merge -p '
+              {"spec":{"shardSID":null}}' 2>&1)
+              EXIT=$?
+              set -e
+              if [ "$EXIT" -eq 0 ]; then
+                echo "ERROR: expected rejection of an unassigned shardSID but the patch was accepted"
+                exit 1
+              fi
+              case "$OUTPUT" in
+                *"cannot be unassigned once assigned"*) ;;
+                *) echo "ERROR: rejected for the wrong reason: $OUTPUT"; exit 1 ;;
+              esac
+              echo "OK: unassigning an assigned shardSID correctly rejected"
+              echo "Server response: $OUTPUT"
+
+    - name: reject-non-ipv6-sid
+      try:
+        - script:
+            content: |
+              set +e
+              OUTPUT=$(kubectl apply -n "$NAMESPACE" -f - 2>&1 <<'EOF'
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: EgressShard
+              metadata:
+                name: e2e-egress-shard-ipv4-sid
+              spec:
+                targetRef:
+                  kind: Node
+                  name: bgp-e2e-worker
+                shardSID: 198.51.100.9
+              EOF
+              )
+              EXIT=$?
+              set -e
+              if [ "$EXIT" -eq 0 ]; then
+                echo "ERROR: expected rejection of an IPv4 shardSID but the resource was accepted"
+                kubectl delete egressshard e2e-egress-shard-ipv4-sid -n "$NAMESPACE" 2>/dev/null || true
+                exit 1
+              fi
+              case "$OUTPUT" in
+                *"shardSID must be a valid IPv6 address"*) ;;
+                *) echo "ERROR: rejected for the wrong reason: $OUTPUT"; exit 1 ;;
+              esac
+              echo "OK: an IPv4 shardSID correctly rejected"
               echo "Server response: $OUTPUT"
 
     - name: reject-prefix-change
