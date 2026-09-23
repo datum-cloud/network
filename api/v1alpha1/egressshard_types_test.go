@@ -24,6 +24,7 @@ func newTestEgressShard() *EgressShard {
 		},
 		Spec: EgressShardSpec{
 			TargetRef:        TargetRef{Kind: "Node", Name: "node-a"},
+			ShardSID:         "2001:db8:ff01:2001::",
 			ShardAddressIPv6: "2001:db8:f00d::100",
 			ShardAddressIPv6ClaimRef: &AddressClaimRef{
 				APIGroup:  "ipam.miloapis.com",
@@ -42,6 +43,7 @@ func TestEgressShardDeepCopy(t *testing.T) {
 	orig := newTestEgressShard()
 	dup := orig.DeepCopy()
 
+	dup.Spec.ShardSID = "2001:db8:ff01:2002::"
 	dup.Spec.ShardAddressIPv6 = "2001:db8:f00d::200"
 	dup.Spec.ShardAddressIPv4 = "198.51.100.7"
 	dup.Spec.NAT64Prefix = "64:ff9b::/96"
@@ -49,6 +51,9 @@ func TestEgressShardDeepCopy(t *testing.T) {
 	dup.Spec.ShardAddressIPv6ClaimRef.Name = "some-other-claim"
 	dup.Status.Conditions = append(dup.Status.Conditions, metav1.Condition{Type: ConditionTypeProgrammed})
 
+	if orig.Spec.ShardSID != "2001:db8:ff01:2001::" {
+		t.Errorf("ShardSID mutated: got %q", orig.Spec.ShardSID)
+	}
 	if orig.Spec.ShardAddressIPv6 != "2001:db8:f00d::100" {
 		t.Errorf("ShardAddressIPv6 mutated: got %q", orig.Spec.ShardAddressIPv6)
 	}
@@ -107,7 +112,8 @@ func TestEgressShardJSONRoundTrip(t *testing.T) {
 		t.Fatalf("Unmarshal: %v", err)
 	}
 
-	if got.Spec.ShardAddressIPv6 != orig.Spec.ShardAddressIPv6 ||
+	if got.Spec.ShardSID != orig.Spec.ShardSID ||
+		got.Spec.ShardAddressIPv6 != orig.Spec.ShardAddressIPv6 ||
 		got.Spec.ShardAddressIPv4 != orig.Spec.ShardAddressIPv4 ||
 		got.Spec.NAT64Prefix != orig.Spec.NAT64Prefix ||
 		got.Spec.TargetRef != orig.Spec.TargetRef {
@@ -148,6 +154,7 @@ func TestEgressShardSpecFieldNames(t *testing.T) {
 	}
 
 	want := map[string]string{
+		"shardSID":         "2001:db8:ff01:2001::",
 		"shardAddressIPv6": "2001:db8:f00d::100",
 		"shardAddressIPv4": "198.51.100.7",
 		"nat64Prefix":      "64:ff9b::/96",
@@ -196,7 +203,7 @@ func TestEgressShardSpecOmitEmpty(t *testing.T) {
 	}
 
 	for _, key := range []string{
-		"shardAddressIPv6", "shardAddressIPv4", "nat64Prefix",
+		"shardSID", "shardAddressIPv6", "shardAddressIPv4", "nat64Prefix",
 		"shardAddressIPv6ClaimRef", "shardAddressIPv4ClaimRef",
 	} {
 		if _, ok := m[key]; ok {
