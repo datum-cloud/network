@@ -1,0 +1,97 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: serviceendpoints.network.datumapis.com
+spec:
+  group: network.datumapis.com
+  names:
+    kind: ServiceEndpoint
+    listKind: ServiceEndpointList
+    plural: serviceendpoints
+    shortNames:
+    - svcendpoint
+    singular: serviceendpoint
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.address
+      name: ADDRESS
+      type: string
+    - jsonPath: .spec.port
+      name: PORT
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          ServiceEndpoint publishes a platform service that can be reached through a
+          VPC attachment. The object describes the service contract; the controller
+          that owns the service is responsible for its health and implementation.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ServiceEndpointSpec defines a platform service address and
+              its scope.
+            properties:
+              address:
+                description: Address is the stable address that consumers use to reach
+                  the service.
+                type: string
+                x-kubernetes-validations:
+                - message: address must be an IP address
+                  rule: isIP(self)
+              port:
+                description: Port is the service port.
+                format: int32
+                maximum: 65535
+                minimum: 1
+                type: integer
+              protocol:
+                description: Protocol is the transport protocol accepted by the endpoint.
+                enum:
+                - tcp
+                - udp
+                type: string
+              region:
+                description: |-
+                  Region limits endpoint selection to a region. An empty value means the
+                  endpoint is not region-scoped.
+                type: string
+              serviceClass:
+                description: |-
+                  ServiceClass identifies the platform capability implemented by this
+                  endpoint, for example "ipv6-egress-dns".
+                minLength: 1
+                type: string
+            required:
+            - address
+            - port
+            - protocol
+            - serviceClass
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources: {}
