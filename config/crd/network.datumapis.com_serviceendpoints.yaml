@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.18.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: serviceendpoints.network.datumapis.com
 spec:
   group: network.datumapis.com
@@ -62,6 +62,26 @@ spec:
                 x-kubernetes-validations:
                 - message: address must be an IP address
                   rule: isIP(self)
+              attachmentRef:
+                description: |-
+                  AttachmentRef identifies the Cloud API VPCAttachment that hosts this
+                  endpoint when the service is delivered through a private VPC path.
+                  The network API keeps this reference opaque; the consuming controller
+                  resolves it against the Cloud API.
+                properties:
+                  name:
+                    description: Name is the Cloud API VPCAttachment name.
+                    minLength: 1
+                    type: string
+                  namespace:
+                    description: Namespace is the namespace containing the Cloud API
+                      VPCAttachment.
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                - namespace
+                type: object
               port:
                 description: Port is the service port.
                 format: int32

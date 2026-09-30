@@ -41,10 +41,29 @@ type ServiceEndpointSpec struct {
 	// +kubebuilder:validation:Required
 	Protocol NetworkRuleProtocol `json:"protocol"`
 
+	// AttachmentRef identifies the Cloud API VPCAttachment that hosts this
+	// endpoint when the service is delivered through a private VPC path.
+	// The network API keeps this reference opaque; the consuming controller
+	// resolves it against the Cloud API.
+	// +optional
+	AttachmentRef *ServiceEndpointAttachmentReference `json:"attachmentRef,omitempty"`
+
 	// Region limits endpoint selection to a region. An empty value means the
 	// endpoint is not region-scoped.
 	// +optional
 	Region string `json:"region,omitempty"`
+}
+
+// ServiceEndpointAttachmentReference identifies the private attachment that
+// backs a platform service endpoint.
+type ServiceEndpointAttachmentReference struct {
+	// Namespace is the namespace containing the Cloud API VPCAttachment.
+	// +kubebuilder:validation:MinLength=1
+	Namespace string `json:"namespace"`
+
+	// Name is the Cloud API VPCAttachment name.
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
 }
 
 // ServiceEndpointList is a list of ServiceEndpoint resources.

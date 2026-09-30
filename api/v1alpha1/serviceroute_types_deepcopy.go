@@ -10,6 +10,11 @@ import (
 func (in *ServiceEndpoint) DeepCopyInto(out *ServiceEndpoint) {
 	*out = *in
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
+	if in.Spec.AttachmentRef != nil {
+		in, out := &in.Spec.AttachmentRef, &out.Spec.AttachmentRef
+		*out = new(ServiceEndpointAttachmentReference)
+		**out = **in
+	}
 }
 
 func (in *ServiceEndpoint) DeepCopy() *ServiceEndpoint {
@@ -136,6 +141,19 @@ func (in *ServiceEndpointReference) DeepCopy() *ServiceEndpointReference {
 		return nil
 	}
 	out := new(ServiceEndpointReference)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *ServiceEndpointAttachmentReference) DeepCopyInto(out *ServiceEndpointAttachmentReference) {
+	*out = *in
+}
+
+func (in *ServiceEndpointAttachmentReference) DeepCopy() *ServiceEndpointAttachmentReference {
+	if in == nil {
+		return nil
+	}
+	out := new(ServiceEndpointAttachmentReference)
 	in.DeepCopyInto(out)
 	return out
 }
