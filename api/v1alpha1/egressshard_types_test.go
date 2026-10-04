@@ -142,6 +142,7 @@ func TestEgressShardSpecFieldNames(t *testing.T) {
 	orig := newTestEgressShard()
 	orig.Spec.ShardAddressIPv4 = "198.51.100.7"
 	orig.Spec.NAT64Prefix = "64:ff9b::/96"
+	orig.Spec.TranslateWellKnownPrefix = true
 
 	data, err := json.Marshal(orig.Spec)
 	if err != nil {
@@ -163,6 +164,9 @@ func TestEgressShardSpecFieldNames(t *testing.T) {
 		if raw, ok := m[key]; !ok || raw != value {
 			t.Errorf("%s: got %v, want %q", key, raw, value)
 		}
+	}
+	if raw, ok := m["translateWellKnownPrefix"]; !ok || raw != true {
+		t.Errorf("translateWellKnownPrefix: got %v, want true", raw)
 	}
 	if _, ok := m["targetRef"]; !ok {
 		t.Error("expected \"targetRef\" key to be present")
@@ -205,6 +209,7 @@ func TestEgressShardSpecOmitEmpty(t *testing.T) {
 	for _, key := range []string{
 		"shardSID", "shardAddressIPv6", "shardAddressIPv4", "nat64Prefix",
 		"shardAddressIPv6ClaimRef", "shardAddressIPv4ClaimRef",
+		"translateWellKnownPrefix",
 	} {
 		if _, ok := m[key]; ok {
 			t.Errorf("expected %q key to be absent when empty", key)

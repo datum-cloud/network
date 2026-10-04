@@ -123,8 +123,9 @@ spec:
               nat64Prefix:
                 description: |-
                   NAT64Prefix is the IPv6 prefix whose synthesized addresses this shard
-                  translates to IPv4 — one Datum-operated Network-Specific Prefix, shared
-                  fabric-wide, never per-tenant. It must be the prefix the resolver
+                  translates to IPv4 — a Datum-operated Network-Specific Prefix, shared
+                  fabric-wide, never per-tenant. TranslateWellKnownPrefix adds the RFC 6052
+                  Well-Known Prefix alongside it. It must be the prefix the resolver
                   synthesizes into; a shard translating for a different one is a
                   blackhole with no symptom on either side.
 
@@ -300,6 +301,20 @@ spec:
                 - kind
                 - name
                 type: object
+              translateWellKnownPrefix:
+                description: |-
+                  TranslateWellKnownPrefix additionally translates destinations inside the
+                  RFC 6052 Well-Known Prefix 64:ff9b::/96 to IPv4 from ShardAddressIPv4, so
+                  clients using a public DNS64 resolver reach IPv4 destinations. Requires
+                  NAT64Prefix.
+
+                  RFC 6052 §3.1 forbids the Well-Known Prefix from representing non-global
+                  IPv4 addresses; the implementation must refuse such destinations.
+
+                  Mutable, unlike NAT64Prefix. Disabling it blackholes every destination
+                  clients already resolved into the Well-Known Prefix until their DNS TTLs
+                  expire.
+                type: boolean
             required:
             - targetRef
             type: object
@@ -325,6 +340,9 @@ spec:
               rule: '!has(oldSelf.shardAddressIPv6ClaimRef) || has(self.shardAddressIPv6ClaimRef)'
             - message: shardAddressIPv4ClaimRef cannot be unassigned once assigned
               rule: '!has(oldSelf.shardAddressIPv4ClaimRef) || has(self.shardAddressIPv4ClaimRef)'
+            - message: translateWellKnownPrefix requires nat64Prefix
+              rule: '!(has(self.translateWellKnownPrefix) && self.translateWellKnownPrefix)
+                || (has(self.nat64Prefix) && size(self.nat64Prefix) > 0)'
           status:
             description: |-
               EgressShardStatus defines the observed state of an EgressShard.
@@ -444,6 +462,12 @@ spec:
                 x-kubernetes-validations:
                 - message: shardSID must be a valid IPv6 address
                   rule: self == '' || (isIP(self) && ip(self).family() == 6)
+              translatesWellKnownPrefix:
+                description: |-
+                  TranslatesWellKnownPrefix reports whether this shard's datapath is
+                  programmed to translate the RFC 6052 Well-Known Prefix 64:ff9b::/96, from
+                  Spec.TranslateWellKnownPrefix. False whenever ShardAddressIPv4 is empty.
+                type: boolean
             type: object
         type: object
     served: true
