@@ -212,6 +212,7 @@ type AddressClaimRef struct {
 // +kubebuilder:validation:XValidation:rule="!(has(oldSelf.nat64Prefix) && size(oldSelf.nat64Prefix) > 0) || (has(self.nat64Prefix) && size(self.nat64Prefix) > 0)",message="nat64Prefix cannot be unassigned once assigned"
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.shardAddressIPv6ClaimRef) || has(self.shardAddressIPv6ClaimRef)",message="shardAddressIPv6ClaimRef cannot be unassigned once assigned"
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.shardAddressIPv4ClaimRef) || has(self.shardAddressIPv4ClaimRef)",message="shardAddressIPv4ClaimRef cannot be unassigned once assigned"
+// +kubebuilder:validation:XValidation:rule="!(has(self.translateWellKnownPrefix) && self.translateWellKnownPrefix) || (has(self.nat64Prefix) && size(self.nat64Prefix) > 0)",message="translateWellKnownPrefix requires nat64Prefix"
 type EgressShardSpec struct {
 	// TargetRef identifies the Node this shard executes on.
 	// +kubebuilder:validation:Required
@@ -283,8 +284,9 @@ type EgressShardSpec struct {
 	ShardAddressIPv4ClaimRef *AddressClaimRef `json:"shardAddressIPv4ClaimRef,omitempty"`
 
 	// NAT64Prefix is the IPv6 prefix whose synthesized addresses this shard
-	// translates to IPv4 — one Datum-operated Network-Specific Prefix, shared
-	// fabric-wide, never per-tenant. It must be the prefix the resolver
+	// translates to IPv4 — a Datum-operated Network-Specific Prefix, shared
+	// fabric-wide, never per-tenant. TranslateWellKnownPrefix adds the RFC 6052
+	// Well-Known Prefix alongside it. It must be the prefix the resolver
 	// synthesizes into; a shard translating for a different one is a
 	// blackhole with no symptom on either side.
 	//
@@ -297,6 +299,20 @@ type EgressShardSpec struct {
 	// +kubebuilder:validation:XValidation:rule="self == '' || isCIDR(self)",message="nat64Prefix must be a valid CIDR"
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf || oldSelf == ''",message="nat64Prefix is immutable once assigned"
 	NAT64Prefix string `json:"nat64Prefix,omitempty"`
+
+	// TranslateWellKnownPrefix additionally translates destinations inside the
+	// RFC 6052 Well-Known Prefix 64:ff9b::/96 to IPv4 from ShardAddressIPv4, so
+	// clients using a public DNS64 resolver reach IPv4 destinations. Requires
+	// NAT64Prefix.
+	//
+	// RFC 6052 §3.1 forbids the Well-Known Prefix from representing non-global
+	// IPv4 addresses; the implementation must refuse such destinations.
+	//
+	// Mutable, unlike NAT64Prefix. Disabling it blackholes every destination
+	// clients already resolved into the Well-Known Prefix until their DNS TTLs
+	// expire.
+	// +optional
+	TranslateWellKnownPrefix bool `json:"translateWellKnownPrefix,omitempty"`
 }
 
 // EgressShardStatus defines the observed state of an EgressShard.
@@ -344,6 +360,12 @@ type EgressShardStatus struct {
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="self == '' || isCIDR(self)",message="nat64Prefix must be a valid CIDR"
 	NAT64Prefix string `json:"nat64Prefix,omitempty"`
+
+	// TranslatesWellKnownPrefix reports whether this shard's datapath is
+	// programmed to translate the RFC 6052 Well-Known Prefix 64:ff9b::/96, from
+	// Spec.TranslateWellKnownPrefix. False whenever ShardAddressIPv4 is empty.
+	// +optional
+	TranslatesWellKnownPrefix bool `json:"translatesWellKnownPrefix,omitempty"`
 
 	// Conditions contains the standard conditions for this resource,
 	// including Programmed (see ConditionTypeProgrammed).
