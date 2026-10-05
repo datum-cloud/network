@@ -1,0 +1,159 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: egress-shard-claim-crd-schema
+spec:
+  description: >
+    Verify the rules the API server alone enforces on an EgressShardClaim: a
+    claim needs its attachment, VPC, node and at least one family; families
+    are limited to the ones a shard translates; the whole spec is immutable
+    once written, so an attachment that moves nodes gets a new claim rather
+    than an edited one; and status stays writable so a binder can record the
+    shard. Does not require any operator to be running.
+  steps:
+    - name: accept-a-complete-claim
+      try:
+        - apply:
+            resource:
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: EgressShardClaim
+              metadata:
+                name: e2e-claim
+                labels:
+                  network.datumapis.com/egress-node: bgp-e2e-worker
+              spec:
+                attachment:
+                  name: e2e-attachment
+                vpc:
+                  name: e2e-vpc
+                nodeName: bgp-e2e-worker
+                families: [IPv6]
+        - assert:
+            resource:
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: EgressShardClaim
+              metadata:
+                name: e2e-claim
+              spec:
+                nodeName: bgp-e2e-worker
+              (status.shardRef == null): true
+
+    - name: reject-a-claim-missing-its-vpc
+      try:
+        - script:
+            content: |
+              set -e
+              if OUTPUT=$(kubectl apply -n "$NAMESPACE" -f - 2>&1 <<'EOF'
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: EgressShardClaim
+              metadata:
+                name: e2e-claim-no-vpc
+              spec:
+                attachment:
+                  name: e2e-attachment
+                nodeName: bgp-e2e-worker
+                families: [IPv6]
+              EOF
+              ); then
+                echo "FAIL: a claim naming no VPC was accepted"
+                exit 1
+              fi
+              echo "$OUTPUT" | grep -qi "vpc" || { echo "FAIL: unexpected error: $OUTPUT"; exit 1; }
+              echo "OK: a claim naming no VPC is rejected"
+
+    - name: reject-a-claim-with-no-family
+      try:
+        - script:
+            content: |
+              set -e
+              if OUTPUT=$(kubectl apply -n "$NAMESPACE" -f - 2>&1 <<'EOF'
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: EgressShardClaim
+              metadata:
+                name: e2e-claim-no-family
+              spec:
+                attachment:
+                  name: e2e-attachment
+                vpc:
+                  name: e2e-vpc
+                nodeName: bgp-e2e-worker
+                families: []
+              EOF
+              ); then
+                echo "FAIL: a claim with no family was accepted"
+                exit 1
+              fi
+              echo "$OUTPUT" | grep -qi "families" || { echo "FAIL: unexpected error: $OUTPUT"; exit 1; }
+              echo "OK: a claim with no family is rejected"
+
+    - name: reject-a-family-no-shard-translates
+      try:
+        - script:
+            content: |
+              set -e
+              if OUTPUT=$(kubectl apply -n "$NAMESPACE" -f - 2>&1 <<'EOF'
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: EgressShardClaim
+              metadata:
+                name: e2e-claim-bad-family
+              spec:
+                attachment:
+                  name: e2e-attachment
+                vpc:
+                  name: e2e-vpc
+                nodeName: bgp-e2e-worker
+                families: [IPX]
+              EOF
+              ); then
+                echo "FAIL: an unknown family was accepted"
+                exit 1
+              fi
+              echo "$OUTPUT" | grep -qi "families" || { echo "FAIL: unexpected error: $OUTPUT"; exit 1; }
+              echo "OK: an unknown family is rejected"
+
+    - name: reject-moving-a-claim-to-another-node
+      try:
+        - script:
+            content: |
+              set -e
+              if OUTPUT=$(kubectl patch egressshardclaim e2e-claim -n "$NAMESPACE" --type=merge -p '
+              {"spec":{"nodeName":"bgp-e2e-worker2"}}' 2>&1); then
+                echo "FAIL: the spec was edited"
+                exit 1
+              fi
+              echo "$OUTPUT" | grep -q "spec is immutable" || { echo "FAIL: unexpected error: $OUTPUT"; exit 1; }
+              echo "OK: the spec is immutable"
+
+    - name: reject-adding-a-family-to-a-claim
+      try:
+        - script:
+            content: |
+              set -e
+              if OUTPUT=$(kubectl patch egressshardclaim e2e-claim -n "$NAMESPACE" --type=merge -p '
+              {"spec":{"families":["IPv6","IPv4"]}}' 2>&1); then
+                echo "FAIL: the families were edited"
+                exit 1
+              fi
+              echo "$OUTPUT" | grep -q "spec is immutable" || { echo "FAIL: unexpected error: $OUTPUT"; exit 1; }
+              echo "OK: the families are immutable"
+
+    - name: status-stays-writable
+      try:
+        - script:
+            content: |
+              set -e
+              kubectl patch egressshardclaim e2e-claim -n "$NAMESPACE" --subresource=status --type=merge -p '
+              {"status":{"shardRef":{"namespace":"galactic-system","name":"bgp-e2e-worker"},
+              "conditions":[{"type":"Ready","status":"True","reason":"Bound","message":"bound","lastTransitionTime":"2026-01-01T00:00:00Z"}]}}'
+              echo "OK: status written"
+        - assert:
+            resource:
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: EgressShardClaim
+              metadata:
+                name: e2e-claim
+              status:
+                shardRef:
+                  namespace: galactic-system
+                  name: bgp-e2e-worker
+                (conditions[?type == 'Ready'].reason | [0]): Bound

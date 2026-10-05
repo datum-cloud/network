@@ -10,6 +10,7 @@ Package v1alpha1 contains API Schema definitions for the network.datumapis.com/v
 
 ### Resource Types
 - [EgressShard](#egressshard)
+- [EgressShardClaim](#egressshardclaim)
 - [NetworkEgressPolicy](#networkegresspolicy)
 - [NetworkGateway](#networkgateway)
 - [NetworkRule](#networkrule)
@@ -118,6 +119,134 @@ resource that placed traffic on it.
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[EgressShardSpec](#egressshardspec)_ |  |  |  |
 | `status` _[EgressShardStatus](#egressshardstatus)_ |  |  |  |
+
+
+#### EgressShardClaim
+
+
+
+EgressShardClaim is one attachment's standing request for internet egress
+on the node it landed on. It is written by the controller that owns the
+cell and read by the node.
+
+The claim is the contract between the two. The cell controller creates one
+when an attachment's network declares egress and the attachment has reported
+its node, and deletes it when the declaration is withdrawn or the attachment
+goes. The node's installer lists the claims naming it on every sweep and
+keeps each VRF's egress route in step: a VRF with a claim routes toward the
+node's shard, a VRF without one does not. That is what lets egress be turned
+on or off for a running workload without re-attaching it.
+
+The claim also records the binding. Status names the shard on the node, so
+the answer to "which shard does this attachment leave through" is readable,
+and a node without a usable shard produces a condition a consumer can see.
+
+There is one claim per attachment, owned by it, so an attachment that goes
+takes its claim with it. The claim names no selector, no address and no
+pool: the node is the binding, and the claim writes it down.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `network.datumapis.com/v1alpha1` | | |
+| `kind` _string_ | `EgressShardClaim` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[EgressShardClaimSpec](#egressshardclaimspec)_ |  |  |  |
+| `status` _[EgressShardClaimStatus](#egressshardclaimstatus)_ |  |  |  |
+
+
+#### EgressShardClaimAttachmentRef
+
+
+
+EgressShardClaimAttachmentRef names the attachment a claim stands for.
+
+
+
+_Appears in:_
+- [EgressShardClaimSpec](#egressshardclaimspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name of the attachment, in the claim's namespace. |  | MinLength: 1 <br /> |
+
+
+#### EgressShardClaimShardRef
+
+
+
+EgressShardClaimShardRef names the shard a claim is bound to.
+
+
+
+_Appears in:_
+- [EgressShardClaimStatus](#egressshardclaimstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `namespace` _string_ | Namespace of the EgressShard. |  | MinLength: 1 <br /> |
+| `name` _string_ | Name of the EgressShard. |  | MinLength: 1 <br /> |
+
+
+#### EgressShardClaimSpec
+
+
+
+EgressShardClaimSpec is the attachment, the VRF, the node and the families
+one claim stands for.
+
+The whole spec is immutable. An attachment that lands on a different node
+is a different request, so the claim is replaced rather than edited.
+
+
+
+_Appears in:_
+- [EgressShardClaim](#egressshardclaim)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `attachment` _[EgressShardClaimAttachmentRef](#egressshardclaimattachmentref)_ | Attachment is the attachment this claim stands for. It is in the<br />claim's own namespace and owns the claim. |  |  |
+| `vpc` _[EgressShardClaimVPCRef](#egressshardclaimvpcref)_ | VPC is the VPC the attachment is on. The node derives the VRF it<br />programs from this name, the same way it does at attach time, so the<br />node needs nothing else to find the routing table this claim governs. |  |  |
+| `nodeName` _string_ | NodeName is the node the attachment landed on, and therefore the node<br />whose shard serves it and whose installer acts on this claim. |  | MinLength: 1 <br /> |
+
+
+#### EgressShardClaimStatus
+
+
+
+EgressShardClaimStatus is the shard a claim was bound to.
+
+
+
+_Appears in:_
+- [EgressShardClaim](#egressshardclaim)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `observedGeneration` _integer_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  |  |
+| `shardRef` _[EgressShardClaimShardRef](#egressshardclaimshardref)_ | ShardRef is the shard on the attachment's node.<br />Absent means the node holds no shard this claim can bind to, which is<br />what an attachment on a node an operator has not commissioned reads. |  |  |
+
+
+#### EgressShardClaimVPCRef
+
+
+
+EgressShardClaimVPCRef names the VPC an attachment is on.
+
+
+
+_Appears in:_
+- [EgressShardClaimSpec](#egressshardclaimspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name of the VPC, in the claim's namespace. |  | MinLength: 1 <br /> |
 
 
 #### EgressShardSpec
