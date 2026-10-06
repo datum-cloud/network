@@ -45,6 +45,10 @@ type ServiceEndpointSpec struct {
 	// DeliveryMode defines how a backing attachment is selected relative to a
 	// consumer. PreferNodeLocal uses a ready attachment on the consumer's node
 	// when one exists and otherwise falls back to a ready remote attachment.
+	// The dataplane preserves the consumer source address. If consumers with
+	// overlapping address space present an identical TCP or UDP five-tuple to the
+	// same replica, it rejects the later ambiguous flow fail-closed rather than
+	// translate the source or risk returning traffic to the wrong VPC.
 	// +kubebuilder:validation:Required
 	DeliveryMode ServiceEndpointDeliveryMode `json:"deliveryMode"`
 
