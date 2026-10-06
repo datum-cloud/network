@@ -515,7 +515,7 @@ _Underlying type:_ _string_
 ServiceEndpointDeliveryMode defines the placement contract for a service.
 
 _Validation:_
-- Enum: [NodeLocal]
+- Enum: [NodeLocal PreferNodeLocal]
 
 _Appears in:_
 - [ServiceEndpointSpec](#serviceendpointspec)
@@ -523,6 +523,7 @@ _Appears in:_
 | Field | Description |
 | --- | --- |
 | `NodeLocal` | ServiceEndpointDeliveryModeNodeLocal requires the endpoint's backing<br />attachment to be present on each node where selected consumers run.<br /> |
+| `PreferNodeLocal` | ServiceEndpointDeliveryModePreferNodeLocal selects a backing attachment on<br />the consumer's node when possible and otherwise tunnels to a ready remote<br />attachment while preserving the consumer source address.<br /> |
 
 
 #### ServiceEndpointReference
@@ -559,8 +560,9 @@ _Appears in:_
 | `address` _string_ | Address is the stable address that consumers use to reach the service. |  | Required: \{\} <br /> |
 | `port` _integer_ | Port is the service port. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
 | `protocol` _[NetworkRuleProtocol](#networkruleprotocol)_ | Protocol is the transport protocol accepted by the endpoint. |  | Enum: [tcp udp] <br />Required: \{\} <br /> |
-| `deliveryMode` _[ServiceEndpointDeliveryMode](#serviceendpointdeliverymode)_ | DeliveryMode defines where the service backing attachment must run. The<br />current dataplane supports only a backing attachment on every node that<br />has selected consumers; it does not forward private-service traffic to a<br />remote node. |  | Enum: [NodeLocal] <br />Required: \{\} <br /> |
+| `deliveryMode` _[ServiceEndpointDeliveryMode](#serviceendpointdeliverymode)_ | DeliveryMode defines how a backing attachment is selected relative to a<br />consumer. PreferNodeLocal uses a ready attachment on the consumer's node<br />when one exists and otherwise falls back to a ready remote attachment. |  | Enum: [NodeLocal PreferNodeLocal] <br />Required: \{\} <br /> |
 | `attachmentRef` _[ServiceEndpointAttachmentReference](#serviceendpointattachmentreference)_ | AttachmentRef identifies the Cloud API VPCAttachment that hosts this<br />endpoint when the service is delivered through a private VPC path.<br />The network API keeps this reference opaque; the consuming controller<br />resolves it against the Cloud API. |  |  |
+| `attachmentSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#labelselector-v1-meta)_ | AttachmentSelector selects the Cloud API VPCAttachments that host replicas<br />of this endpoint. Labels used here must be assigned by the platform service<br />controller, not by tenants. The dataplane selects one ready replica for<br />each consumer according to DeliveryMode. |  |  |
 | `region` _string_ | Region limits endpoint selection to a region. An empty value means the<br />endpoint is not region-scoped. |  |  |
 
 

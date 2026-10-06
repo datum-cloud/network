@@ -82,14 +82,64 @@ spec:
                 - name
                 - namespace
                 type: object
+              attachmentSelector:
+                description: |-
+                  AttachmentSelector selects the Cloud API VPCAttachments that host replicas
+                  of this endpoint. Labels used here must be assigned by the platform service
+                  controller, not by tenants. The dataplane selects one ready replica for
+                  each consumer according to DeliveryMode.
+                properties:
+                  matchExpressions:
+                    description: matchExpressions is a list of label selector requirements.
+                      The requirements are ANDed.
+                    items:
+                      description: |-
+                        A label selector requirement is a selector that contains values, a key, and an operator that
+                        relates the key and values.
+                      properties:
+                        key:
+                          description: key is the label key that the selector applies
+                            to.
+                          type: string
+                        operator:
+                          description: |-
+                            operator represents a key's relationship to a set of values.
+                            Valid operators are In, NotIn, Exists and DoesNotExist.
+                          type: string
+                        values:
+                          description: |-
+                            values is an array of string values. If the operator is In or NotIn,
+                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                            the values array must be empty. This array is replaced during a strategic
+                            merge patch.
+                          items:
+                            type: string
+                          type: array
+                          x-kubernetes-list-type: atomic
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                    x-kubernetes-list-type: atomic
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                      map is equivalent to an element of matchExpressions, whose key field is "key", the
+                      operator is "In", and the values array contains only "value". The requirements are ANDed.
+                    type: object
+                type: object
+                x-kubernetes-map-type: atomic
               deliveryMode:
                 description: |-
-                  DeliveryMode defines where the service backing attachment must run. The
-                  current dataplane supports only a backing attachment on every node that
-                  has selected consumers; it does not forward private-service traffic to a
-                  remote node.
+                  DeliveryMode defines how a backing attachment is selected relative to a
+                  consumer. PreferNodeLocal uses a ready attachment on the consumer's node
+                  when one exists and otherwise falls back to a ready remote attachment.
                 enum:
                 - NodeLocal
+                - PreferNodeLocal
                 type: string
               port:
                 description: Port is the service port.
@@ -121,6 +171,10 @@ spec:
             - protocol
             - serviceClass
             type: object
+            x-kubernetes-validations:
+            - message: exactly one of attachmentRef or attachmentSelector must be
+                set
+              rule: has(self.attachmentRef) != has(self.attachmentSelector)
         type: object
     served: true
     storage: true

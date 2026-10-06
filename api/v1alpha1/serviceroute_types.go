@@ -19,6 +19,7 @@ type ServiceEndpoint struct {
 }
 
 // ServiceEndpointSpec defines a platform service address and its scope.
+// +kubebuilder:validation:XValidation:rule="has(self.attachmentRef) != has(self.attachmentSelector)",message="exactly one of attachmentRef or attachmentSelector must be set"
 type ServiceEndpointSpec struct {
 	// ServiceClass identifies the platform capability implemented by this
 	// endpoint, for example "ipv6-egress-dns".
@@ -41,10 +42,9 @@ type ServiceEndpointSpec struct {
 	// +kubebuilder:validation:Required
 	Protocol NetworkRuleProtocol `json:"protocol"`
 
-	// DeliveryMode defines where the service backing attachment must run. The
-	// current dataplane supports only a backing attachment on every node that
-	// has selected consumers; it does not forward private-service traffic to a
-	// remote node.
+	// DeliveryMode defines how a backing attachment is selected relative to a
+	// consumer. PreferNodeLocal uses a ready attachment on the consumer's node
+	// when one exists and otherwise falls back to a ready remote attachment.
 	// +kubebuilder:validation:Required
 	DeliveryMode ServiceEndpointDeliveryMode `json:"deliveryMode"`
 
@@ -55,6 +55,13 @@ type ServiceEndpointSpec struct {
 	// +optional
 	AttachmentRef *ServiceEndpointAttachmentReference `json:"attachmentRef,omitempty"`
 
+	// AttachmentSelector selects the Cloud API VPCAttachments that host replicas
+	// of this endpoint. Labels used here must be assigned by the platform service
+	// controller, not by tenants. The dataplane selects one ready replica for
+	// each consumer according to DeliveryMode.
+	// +optional
+	AttachmentSelector *metav1.LabelSelector `json:"attachmentSelector,omitempty"`
+
 	// Region limits endpoint selection to a region. An empty value means the
 	// endpoint is not region-scoped.
 	// +optional
@@ -62,13 +69,18 @@ type ServiceEndpointSpec struct {
 }
 
 // ServiceEndpointDeliveryMode defines the placement contract for a service.
-// +kubebuilder:validation:Enum=NodeLocal
+// +kubebuilder:validation:Enum=NodeLocal;PreferNodeLocal
 type ServiceEndpointDeliveryMode string
 
 const (
 	// ServiceEndpointDeliveryModeNodeLocal requires the endpoint's backing
 	// attachment to be present on each node where selected consumers run.
 	ServiceEndpointDeliveryModeNodeLocal ServiceEndpointDeliveryMode = "NodeLocal"
+
+	// ServiceEndpointDeliveryModePreferNodeLocal selects a backing attachment on
+	// the consumer's node when possible and otherwise tunnels to a ready remote
+	// attachment while preserving the consumer source address.
+	ServiceEndpointDeliveryModePreferNodeLocal ServiceEndpointDeliveryMode = "PreferNodeLocal"
 )
 
 // ServiceEndpointAttachmentReference identifies the private attachment that

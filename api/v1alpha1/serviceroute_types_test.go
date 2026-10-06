@@ -48,3 +48,18 @@ func TestServiceRoutePolicyListDeepCopy(t *testing.T) {
 		t.Fatalf("DeepCopy shared selector values: got %q", got)
 	}
 }
+
+func TestServiceEndpointDeepCopy(t *testing.T) {
+	original := &ServiceEndpoint{Spec: ServiceEndpointSpec{
+		DeliveryMode: ServiceEndpointDeliveryModePreferNodeLocal,
+		AttachmentSelector: &metav1.LabelSelector{MatchLabels: map[string]string{
+			"service.datumapis.com/name": "dns64",
+		}},
+	}}
+
+	copy := original.DeepCopy()
+	copy.Spec.AttachmentSelector.MatchLabels["service.datumapis.com/name"] = "other"
+	if got := original.Spec.AttachmentSelector.MatchLabels["service.datumapis.com/name"]; got != "dns64" {
+		t.Fatalf("DeepCopy shared endpoint selector labels: got %q", got)
+	}
+}
