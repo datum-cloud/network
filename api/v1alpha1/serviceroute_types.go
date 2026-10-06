@@ -169,6 +169,12 @@ type ServiceRoutePolicyStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
+const (
+	// ConditionTypeServiceRouteAccepted reports whether the policy is valid and
+	// can be compiled by the dataplane controllers.
+	ConditionTypeServiceRouteAccepted = "Accepted"
+)
+
 // ServiceRoutePolicyList is a list of ServiceRoutePolicy resources.
 // +kubebuilder:object:root=true
 type ServiceRoutePolicyList struct {
