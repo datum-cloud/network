@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: serviceendpoints.network.datumapis.com
 spec:
   group: network.datumapis.com
@@ -82,6 +82,15 @@ spec:
                 - name
                 - namespace
                 type: object
+              deliveryMode:
+                description: |-
+                  DeliveryMode defines where the service backing attachment must run. The
+                  current dataplane supports only a backing attachment on every node that
+                  has selected consumers; it does not forward private-service traffic to a
+                  remote node.
+                enum:
+                - NodeLocal
+                type: string
               port:
                 description: Port is the service port.
                 format: int32
@@ -107,6 +116,7 @@ spec:
                 type: string
             required:
             - address
+            - deliveryMode
             - port
             - protocol
             - serviceClass

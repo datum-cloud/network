@@ -41,6 +41,13 @@ type ServiceEndpointSpec struct {
 	// +kubebuilder:validation:Required
 	Protocol NetworkRuleProtocol `json:"protocol"`
 
+	// DeliveryMode defines where the service backing attachment must run. The
+	// current dataplane supports only a backing attachment on every node that
+	// has selected consumers; it does not forward private-service traffic to a
+	// remote node.
+	// +kubebuilder:validation:Required
+	DeliveryMode ServiceEndpointDeliveryMode `json:"deliveryMode"`
+
 	// AttachmentRef identifies the Cloud API VPCAttachment that hosts this
 	// endpoint when the service is delivered through a private VPC path.
 	// The network API keeps this reference opaque; the consuming controller
@@ -53,6 +60,16 @@ type ServiceEndpointSpec struct {
 	// +optional
 	Region string `json:"region,omitempty"`
 }
+
+// ServiceEndpointDeliveryMode defines the placement contract for a service.
+// +kubebuilder:validation:Enum=NodeLocal
+type ServiceEndpointDeliveryMode string
+
+const (
+	// ServiceEndpointDeliveryModeNodeLocal requires the endpoint's backing
+	// attachment to be present on each node where selected consumers run.
+	ServiceEndpointDeliveryModeNodeLocal ServiceEndpointDeliveryMode = "NodeLocal"
+)
 
 // ServiceEndpointAttachmentReference identifies the private attachment that
 // backs a platform service endpoint.
