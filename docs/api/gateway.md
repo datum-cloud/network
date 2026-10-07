@@ -13,6 +13,8 @@ Package v1alpha1 contains API Schema definitions for the network.datumapis.com/v
 - [NetworkEgressPolicy](#networkegresspolicy)
 - [NetworkGateway](#networkgateway)
 - [NetworkRule](#networkrule)
+- [ServiceEndpoint](#serviceendpoint)
+- [ServiceRoutePolicy](#serviceroutepolicy)
 - [ServiceVIPBinding](#servicevipbinding)
 
 
@@ -417,6 +419,8 @@ _Validation:_
 
 _Appears in:_
 - [NetworkRuleSpec](#networkrulespec)
+- [ServiceEndpointSpec](#serviceendpointspec)
+- [ServiceRouteProtocolPort](#servicerouteprotocolport)
 - [ServiceVIPBindingSpec](#servicevipbindingspec)
 
 | Field | Description |
@@ -462,6 +466,181 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `observedGeneration` _integer_ | ObservedGeneration is the .metadata.generation this status was computed from. |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource. |  |  |
+
+
+#### ServiceEndpoint
+
+
+
+ServiceEndpoint publishes a platform service that can be reached through a
+VPC attachment. The object describes the service contract; the controller
+that owns the service is responsible for its health and implementation.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `network.datumapis.com/v1alpha1` | | |
+| `kind` _string_ | `ServiceEndpoint` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[ServiceEndpointSpec](#serviceendpointspec)_ |  |  |  |
+
+
+#### ServiceEndpointAttachmentReference
+
+
+
+ServiceEndpointAttachmentReference identifies the private attachment that
+backs a platform service endpoint.
+
+
+
+_Appears in:_
+- [ServiceEndpointSpec](#serviceendpointspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `namespace` _string_ | Namespace is the namespace containing the Cloud API VPCAttachment. |  | MinLength: 1 <br /> |
+| `name` _string_ | Name is the Cloud API VPCAttachment name. |  | MinLength: 1 <br /> |
+
+
+#### ServiceEndpointDeliveryMode
+
+_Underlying type:_ _string_
+
+ServiceEndpointDeliveryMode defines the placement contract for a service.
+
+_Validation:_
+- Enum: [NodeLocal PreferNodeLocal]
+
+_Appears in:_
+- [ServiceEndpointSpec](#serviceendpointspec)
+
+| Field | Description |
+| --- | --- |
+| `NodeLocal` | ServiceEndpointDeliveryModeNodeLocal requires the endpoint's backing<br />attachment to be present on each node where selected consumers run.<br /> |
+| `PreferNodeLocal` | ServiceEndpointDeliveryModePreferNodeLocal selects a backing attachment on<br />the consumer's node when possible and otherwise tunnels to a ready remote<br />attachment while preserving the consumer source address.<br /> |
+
+
+#### ServiceEndpointReference
+
+
+
+ServiceEndpointReference identifies a ServiceEndpoint in the policy's
+namespace.
+
+
+
+_Appears in:_
+- [ServiceRoutePolicySpec](#serviceroutepolicyspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name is the ServiceEndpoint name. |  | MinLength: 1 <br /> |
+
+
+#### ServiceEndpointSpec
+
+
+
+ServiceEndpointSpec defines a platform service address and its scope.
+
+
+
+_Appears in:_
+- [ServiceEndpoint](#serviceendpoint)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `serviceClass` _string_ | ServiceClass identifies the platform capability implemented by this<br />endpoint, for example "ipv6-egress-dns". |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `address` _string_ | Address is the stable address that consumers use to reach the service. |  | Required: \{\} <br /> |
+| `port` _integer_ | Port is the service port. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
+| `protocol` _[NetworkRuleProtocol](#networkruleprotocol)_ | Protocol is the transport protocol accepted by the endpoint. |  | Enum: [tcp udp] <br />Required: \{\} <br /> |
+| `deliveryMode` _[ServiceEndpointDeliveryMode](#serviceendpointdeliverymode)_ | DeliveryMode defines how a backing attachment is selected relative to a<br />consumer. PreferNodeLocal uses a ready attachment on the consumer's node<br />when one exists and otherwise falls back to a ready remote attachment.<br />The dataplane preserves the consumer source address. If consumers with<br />overlapping address space present an identical TCP or UDP five-tuple to the<br />same replica, it rejects the later ambiguous flow fail-closed rather than<br />translate the source or risk returning traffic to the wrong VPC. |  | Enum: [NodeLocal PreferNodeLocal] <br />Required: \{\} <br /> |
+| `attachmentRef` _[ServiceEndpointAttachmentReference](#serviceendpointattachmentreference)_ | AttachmentRef identifies the Cloud API VPCAttachment that hosts this<br />endpoint when the service is delivered through a private VPC path.<br />The network API keeps this reference opaque; the consuming controller<br />resolves it against the Cloud API. |  |  |
+| `attachmentSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#labelselector-v1-meta)_ | AttachmentSelector selects the Cloud API VPCAttachments that host replicas<br />of this endpoint. Labels used here must be assigned by the platform service<br />controller, not by tenants. The dataplane selects one ready replica for<br />each consumer according to DeliveryMode. |  |  |
+| `region` _string_ | Region limits endpoint selection to a region. An empty value means the<br />endpoint is not region-scoped. |  |  |
+
+
+#### ServiceRoutePolicy
+
+
+
+ServiceRoutePolicy selects VPC attachments that should receive a route to a
+platform ServiceEndpoint. The selector is evaluated by the network control
+plane; Galactic compiles the selected attachments into dataplane state.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `network.datumapis.com/v1alpha1` | | |
+| `kind` _string_ | `ServiceRoutePolicy` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[ServiceRoutePolicySpec](#serviceroutepolicyspec)_ |  |  |  |
+| `status` _[ServiceRoutePolicyStatus](#serviceroutepolicystatus)_ |  |  |  |
+
+
+#### ServiceRoutePolicySpec
+
+
+
+ServiceRoutePolicySpec defines service selection and attachment eligibility.
+
+
+
+_Appears in:_
+- [ServiceRoutePolicy](#serviceroutepolicy)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `serviceRef` _[ServiceEndpointReference](#serviceendpointreference)_ | ServiceRef identifies the ServiceEndpoint in this namespace. |  | Required: \{\} <br /> |
+| `attachmentSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#labelselector-v1-meta)_ | AttachmentSelector selects eligible VPC attachments by authoritative<br />labels. Labels that grant access to platform services must be assigned by<br />the network control plane, not by tenants. |  | Required: \{\} <br /> |
+| `protocolPorts` _[ServiceRouteProtocolPort](#servicerouteprotocolport) array_ | ProtocolPorts limits the traffic that the route is intended to carry.<br />An empty list means the endpoint's declared port and protocol are used. |  |  |
+| `region` _string_ | Region limits selected attachments to a region. An empty value means the<br />policy applies in every region where the endpoint is available. |  |  |
+
+
+#### ServiceRoutePolicyStatus
+
+
+
+ServiceRoutePolicyStatus contains durable policy conditions only. Per-
+attachment selection and programming state belongs in metrics and logs.
+
+
+
+_Appears in:_
+- [ServiceRoutePolicy](#serviceroutepolicy)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `observedGeneration` _integer_ | ObservedGeneration is the .metadata.generation this status was computed from. |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains durable acceptance and service-availability state. |  |  |
+
+
+#### ServiceRouteProtocolPort
+
+
+
+ServiceRouteProtocolPort identifies an allowed transport protocol and port.
+
+
+
+_Appears in:_
+- [ServiceRoutePolicySpec](#serviceroutepolicyspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `protocol` _[NetworkRuleProtocol](#networkruleprotocol)_ | Protocol is the transport protocol. |  | Enum: [tcp udp] <br />Required: \{\} <br /> |
+| `port` _integer_ | Port is the transport port. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
 
 
 #### ServiceVIPBinding
