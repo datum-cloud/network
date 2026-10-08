@@ -126,10 +126,29 @@ type ServiceRoutePolicy struct {
 }
 
 // ServiceRoutePolicySpec defines service selection and attachment eligibility.
+// +kubebuilder:validation:XValidation:rule="!has(self.frontend) || has(self.consumerVPCRef)",message="frontend requires consumerVPCRef"
+// +kubebuilder:validation:XValidation:rule="!has(self.frontend) || has(self.authorization)",message="frontend requires authorization"
 type ServiceRoutePolicySpec struct {
 	// ServiceRef identifies the ServiceEndpoint in this namespace.
 	// +kubebuilder:validation:Required
 	ServiceRef ServiceEndpointReference `json:"serviceRef"`
+
+	// ConsumerVPCRef pins authorization to the immutable lifetime of the VPC
+	// selected by AttachmentSelector. Galactic resolves the name through the
+	// Cloud API and requires both the live name and UID to match.
+	// +optional
+	ConsumerVPCRef *ServiceRouteVPCReference `json:"consumerVPCRef,omitempty"`
+
+	// Frontend is the address presented inside the consumer VPC. When set,
+	// Galactic translates it to the ServiceEndpoint address and restores it on
+	// replies.
+	// +optional
+	Frontend *ServiceRouteFrontend `json:"frontend,omitempty"`
+
+	// Authorization bounds translated access independently of application leases.
+	// Only trusted networking integration may renew this deadline.
+	// +optional
+	Authorization *ServiceRouteAuthorization `json:"authorization,omitempty"`
 
 	// AttachmentSelector selects eligible VPC attachments by authoritative
 	// labels. Labels that grant access to platform services must be assigned by
@@ -147,6 +166,32 @@ type ServiceRoutePolicySpec struct {
 	// policy applies in every region where the endpoint is available.
 	// +optional
 	Region string `json:"region,omitempty"`
+}
+
+// ServiceRouteAuthorization bounds one network authorization episode.
+type ServiceRouteAuthorization struct {
+	// ValidUntil is the absolute UTC deadline for requests and existing replies.
+	// Node controllers reject deadlines more than two minutes in the future.
+	ValidUntil metav1.Time `json:"validUntil"`
+}
+
+// ServiceRouteVPCReference identifies one immutable Cloud API VPC lifetime.
+type ServiceRouteVPCReference struct {
+	// Name is the VPC name in the policy namespace.
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+
+	// UID is the Kubernetes UID of that VPC lifetime.
+	// +kubebuilder:validation:MinLength=1
+	UID string `json:"uid"`
+}
+
+// ServiceRouteFrontend declares the consumer-facing service address.
+type ServiceRouteFrontend struct {
+	// Address is translated to the ServiceEndpoint address for requests and is
+	// restored as the source address for replies.
+	// +kubebuilder:validation:XValidation:rule="isIP(self)",message="address must be an IP address"
+	Address string `json:"address"`
 }
 
 // ServiceRouteProtocolPort identifies an allowed transport protocol and port.
@@ -170,8 +215,7 @@ type ServiceEndpointReference struct {
 	Name string `json:"name"`
 }
 
-// ServiceRoutePolicyStatus contains durable policy conditions only. Per-
-// attachment selection and programming state belongs in metrics and logs.
+// ServiceRoutePolicyStatus contains policy conditions and fenced node reports.
 type ServiceRoutePolicyStatus struct {
 	// ObservedGeneration is the .metadata.generation this status was computed from.
 	// +optional
@@ -183,6 +227,23 @@ type ServiceRoutePolicyStatus struct {
 	// +listMapKey=type
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// Nodes contains short-lived acknowledgments written by trusted node controllers.
+	// Consumers require current UID, generation, input digest, and unexpired reports.
+	// +listType=map
+	// +listMapKey=nodeName
+	// +optional
+	Nodes []ServiceRouteNodeStatus `json:"nodes,omitempty"`
+}
+
+// ServiceRouteNodeStatus acknowledges one node's current programmed path.
+type ServiceRouteNodeStatus struct {
+	NodeName           string      `json:"nodeName"`
+	PolicyUID          string      `json:"policyUID"`
+	ObservedGeneration int64       `json:"observedGeneration"`
+	InputDigest        string      `json:"inputDigest"`
+	Ready              bool        `json:"ready"`
+	ValidUntil         metav1.Time `json:"validUntil"`
 }
 
 const (
