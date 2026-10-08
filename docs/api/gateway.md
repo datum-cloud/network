@@ -555,6 +555,59 @@ _Appears in:_
 | `region` _string_ | Region limits endpoint selection to a region. An empty value means the<br />endpoint is not region-scoped. |  |  |
 
 
+#### ServiceRouteAuthorization
+
+
+
+ServiceRouteAuthorization bounds one network authorization episode.
+
+
+
+_Appears in:_
+- [ServiceRoutePolicySpec](#serviceroutepolicyspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `validUntil` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#time-v1-meta)_ | ValidUntil is the absolute UTC deadline for requests and existing replies.<br />Node controllers reject deadlines more than two minutes in the future. |  |  |
+
+
+#### ServiceRouteFrontend
+
+
+
+ServiceRouteFrontend declares the consumer-facing service address.
+
+
+
+_Appears in:_
+- [ServiceRoutePolicySpec](#serviceroutepolicyspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `address` _string_ | Address is translated to the ServiceEndpoint address for requests and is<br />restored as the source address for replies. |  |  |
+
+
+#### ServiceRouteNodeStatus
+
+
+
+ServiceRouteNodeStatus acknowledges one node's current programmed path.
+
+
+
+_Appears in:_
+- [ServiceRoutePolicyStatus](#serviceroutepolicystatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `nodeName` _string_ |  |  |  |
+| `policyUID` _string_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
+| `inputDigest` _string_ |  |  |  |
+| `ready` _boolean_ |  |  |  |
+| `validUntil` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#time-v1-meta)_ |  |  |  |
+
+
 #### ServiceRoutePolicy
 
 
@@ -592,6 +645,9 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `serviceRef` _[ServiceEndpointReference](#serviceendpointreference)_ | ServiceRef identifies the ServiceEndpoint in this namespace. |  | Required: \{\} <br /> |
+| `consumerVPCRef` _[ServiceRouteVPCReference](#serviceroutevpcreference)_ | ConsumerVPCRef pins authorization to the immutable lifetime of the VPC<br />selected by AttachmentSelector. Galactic resolves the name through the<br />Cloud API and requires both the live name and UID to match. |  |  |
+| `frontend` _[ServiceRouteFrontend](#serviceroutefrontend)_ | Frontend is the address presented inside the consumer VPC. When set,<br />Galactic translates it to the ServiceEndpoint address and restores it on<br />replies. |  |  |
+| `authorization` _[ServiceRouteAuthorization](#servicerouteauthorization)_ | Authorization bounds translated access independently of application leases.<br />Only trusted networking integration may renew this deadline. |  |  |
 | `attachmentSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#labelselector-v1-meta)_ | AttachmentSelector selects eligible VPC attachments by authoritative<br />labels. Labels that grant access to platform services must be assigned by<br />the network control plane, not by tenants. |  | Required: \{\} <br /> |
 | `protocolPorts` _[ServiceRouteProtocolPort](#servicerouteprotocolport) array_ | ProtocolPorts limits the traffic that the route is intended to carry.<br />An empty list means the endpoint's declared port and protocol are used. |  |  |
 | `region` _string_ | Region limits selected attachments to a region. An empty value means the<br />policy applies in every region where the endpoint is available. |  |  |
@@ -601,8 +657,7 @@ _Appears in:_
 
 
 
-ServiceRoutePolicyStatus contains durable policy conditions only. Per-
-attachment selection and programming state belongs in metrics and logs.
+ServiceRoutePolicyStatus contains policy conditions and fenced node reports.
 
 
 
@@ -613,6 +668,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `observedGeneration` _integer_ | ObservedGeneration is the .metadata.generation this status was computed from. |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains durable acceptance and service-availability state. |  |  |
+| `nodes` _[ServiceRouteNodeStatus](#serviceroutenodestatus) array_ | Nodes contains short-lived acknowledgments written by trusted node controllers.<br />Consumers require current UID, generation, input digest, and unexpired reports. |  |  |
 
 
 #### ServiceRouteProtocolPort
@@ -630,6 +686,23 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `protocol` _[NetworkRuleProtocol](#networkruleprotocol)_ | Protocol is the transport protocol. |  | Enum: [tcp udp] <br />Required: \{\} <br /> |
 | `port` _integer_ | Port is the transport port. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
+
+
+#### ServiceRouteVPCReference
+
+
+
+ServiceRouteVPCReference identifies one immutable Cloud API VPC lifetime.
+
+
+
+_Appears in:_
+- [ServiceRoutePolicySpec](#serviceroutepolicyspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name is the VPC name in the policy namespace. |  | MinLength: 1 <br /> |
+| `uid` _string_ | UID is the Kubernetes UID of that VPC lifetime. |  | MinLength: 1 <br /> |
 
 
 #### ServiceVIPBinding
