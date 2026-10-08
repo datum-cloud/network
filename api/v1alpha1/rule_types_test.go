@@ -20,9 +20,10 @@ func newTestRule() *NetworkRule {
 			VIPAddresses:     []string{"2001:db8:1::10"},
 			Protocol:         NetworkRuleProtocolTCP,
 			Port:             443,
-			Backends: []NetworkRuleBackend{
-				{Address: "fd00:10:1::1", Port: 8443},
+			BackendSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "web"},
 			},
+			BackendPort: 8443,
 		},
 	}
 }
@@ -34,13 +35,13 @@ func TestNetworkRuleDeepCopy(t *testing.T) {
 	dup := orig.DeepCopy()
 
 	dup.Spec.VIPAddresses[0] = "2001:db8:1::20"
-	dup.Spec.Backends[0].Address = "fd00:10:1::2"
+	dup.Spec.BackendSelector.MatchLabels["app"] = "api"
 
 	if orig.Spec.VIPAddresses[0] != "2001:db8:1::10" {
 		t.Errorf("VIPAddresses[0] mutated: got %q", orig.Spec.VIPAddresses[0])
 	}
-	if orig.Spec.Backends[0].Address != "fd00:10:1::1" {
-		t.Errorf("Backends[0].Address mutated: got %q", orig.Spec.Backends[0].Address)
+	if orig.Spec.BackendSelector.MatchLabels["app"] != "web" {
+		t.Errorf("BackendSelector.MatchLabels mutated: got %v", orig.Spec.BackendSelector.MatchLabels)
 	}
 }
 
@@ -56,7 +57,9 @@ func TestNetworkRuleDeepCopyNil(t *testing.T) {
 // deserialises through JSON without data loss.
 func TestNetworkRuleJSONRoundTrip(t *testing.T) {
 	orig := newTestRule()
-	orig.Spec.Backends = append(orig.Spec.Backends, NetworkRuleBackend{Address: "fd00:10:1::3", Port: 8444})
+	orig.Spec.BackendSelector.MatchExpressions = []metav1.LabelSelectorRequirement{
+		{Key: "tier", Operator: metav1.LabelSelectorOpIn, Values: []string{"frontend"}},
+	}
 	orig.Status.Conditions = []metav1.Condition{
 		{Type: ConditionTypeAccepted, Status: metav1.ConditionTrue, Reason: AcceptedReasonOwnershipVerified},
 	}
@@ -77,8 +80,11 @@ func TestNetworkRuleJSONRoundTrip(t *testing.T) {
 	if got.Spec.VPCAttachmentRef != orig.Spec.VPCAttachmentRef {
 		t.Errorf("VPCAttachmentRef: got %q, want %q", got.Spec.VPCAttachmentRef, orig.Spec.VPCAttachmentRef)
 	}
-	if len(got.Spec.Backends) != 2 {
-		t.Errorf("Backends len: got %d, want 2", len(got.Spec.Backends))
+	if got.Spec.BackendSelector.MatchLabels["app"] != "web" || len(got.Spec.BackendSelector.MatchExpressions) != 1 {
+		t.Errorf("BackendSelector: got %+v", got.Spec.BackendSelector)
+	}
+	if got.Spec.BackendPort != orig.Spec.BackendPort {
+		t.Errorf("BackendPort: got %d, want %d", got.Spec.BackendPort, orig.Spec.BackendPort)
 	}
 	if len(got.Status.Conditions) != 1 || got.Status.Conditions[0].Reason != AcceptedReasonOwnershipVerified {
 		t.Errorf("Conditions: got %v", got.Status.Conditions)
@@ -122,11 +128,11 @@ func TestNetworkRuleStatusHasNoPrimaryNode(t *testing.T) {
 	}
 }
 
-// TestNetworkRuleBackendFieldNames verifies the JSON keys for
-// NetworkRuleBackend match the CRD schema ("address", "port").
+// TestNetworkRuleBackendFieldNames verifies the JSON keys for the backend
+// selection fields match the CRD schema, and that the static backend list
+// they replaced is gone.
 func TestNetworkRuleBackendFieldNames(t *testing.T) {
-	b := NetworkRuleBackend{Address: "fd00:10:1::1", Port: 8443}
-	data, err := json.Marshal(b)
+	data, err := json.Marshal(newTestRule().Spec)
 	if err != nil {
 		t.Fatalf("Marshal: %v", err)
 	}
@@ -134,11 +140,14 @@ func TestNetworkRuleBackendFieldNames(t *testing.T) {
 	if err := json.Unmarshal(data, &m); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}
-	if v, ok := m["address"]; !ok || v != "fd00:10:1::1" {
-		t.Errorf("expected JSON key \"address\"=%q, got %v", "fd00:10:1::1", m)
+	if _, ok := m["backendSelector"]; !ok {
+		t.Errorf("expected JSON key \"backendSelector\", got %v", m)
 	}
-	if v, ok := m["port"]; !ok || v != float64(8443) {
-		t.Errorf("expected JSON key \"port\"=8443, got %v", m)
+	if v, ok := m["backendPort"]; !ok || v != float64(8443) {
+		t.Errorf("expected JSON key \"backendPort\"=8443, got %v", m)
+	}
+	if _, ok := m["backends"]; ok {
+		t.Errorf("unexpected \"backends\" key: %v", m)
 	}
 }
 

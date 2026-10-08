@@ -1590,11 +1590,11 @@ ServiceVIPBinding drives one worker node's backend-side half of the
 DSR/Maglev load-balancer datapath: it tells the node which service VIP a
 specific local backend must be reachable on, so the backend can reply to
 clients directly (the "Direct Server Return" this design depends on —
-see NetworkGateway's doc comment). Written by the same controller that
-already resolves a NetworkRule's backends to worker nodes/SRv6
-information (galactic-gateway's usidresolver.go), one object per
-(node, VIP, backend) triple; consumed by a per-node reconciler running
-inside galactic-router's tenant role.
+see NetworkGateway's doc comment). Generated, never written by users:
+galactic-router on each worker node writes one object per (rule, VIP,
+backend) for every backend a NetworkRule's BackendSelector places on that
+node, owned by the rule, and the same process's per-node reconciler
+consumes it.
 
 EgressKind decides which of two backend mechanisms this object drives,
 mirroring the same veth/tap fork the SRv6 uSID decap datapath already
@@ -1666,6 +1666,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `targetRef` _[TargetRef](#targetref)_ | TargetRef identifies the Node this binding applies to. |  | Required: \{\} <br /> |
+| `vpcRef` _string_ | VPCRef is the opaque identifier of the VPC the backend belongs to,<br />copied from the owning NetworkRule. It names the tenant VRF the<br />binding's translation rows are written for, so two tenants using the<br />same backend address on one node never share a row. |  | MinLength: 1 <br />Required: \{\} <br /> |
 | `vipAddress` _string_ | VIPAddress is the service VIP the backend must be reachable on. |  | Required: \{\} <br /> |
 | `port` _integer_ | Port is the VIP-facing port traffic arrives on. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
 | `backendAddress` _string_ | BackendAddress is the backend's own real address (its pod-netns<br />address for a veth backend, or its actual guest-facing address for a<br />tap backend) — the VIP-boundary substitution target for both kinds<br />now (see EgressKind's own doc comment for why veth needs this too,<br />not just tap). +optional at the API level for the same reason<br />EgressKind itself carries no matching CEL requirement; the<br />reconciler validates it's set for either kind before doing anything. |  |  |

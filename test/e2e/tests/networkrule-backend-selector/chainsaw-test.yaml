@@ -1,0 +1,144 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: networkrule-backend-selector
+spec:
+  description: >
+    Verify the schema rules for a NetworkRule's backend selection: a rule with
+    a non-empty backendSelector and a backendPort is accepted, a rule with an
+    empty backendSelector is rejected, and a rule that still lists static
+    backends is rejected, since that field no longer exists. Also verifies that a
+    ServiceVIPBinding requires vpcRef. Does not require any operator to be
+    running; every rule under test is enforced by the API server alone.
+  steps:
+    - name: accept-rule-with-selector
+      try:
+        - apply:
+            resource:
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: NetworkRule
+              metadata:
+                name: e2e-rule-selector
+              spec:
+                vpcRef: vpc-a
+                vpcAttachmentRef: vpc-a-attachment
+                vipAddresses:
+                  - 2001:db8:1::10
+                protocol: tcp
+                port: 443
+                backendSelector:
+                  matchLabels:
+                    app: web
+                backendPort: 8443
+        - assert:
+            resource:
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: NetworkRule
+              metadata:
+                name: e2e-rule-selector
+              spec:
+                backendPort: 8443
+                backendSelector:
+                  matchLabels:
+                    app: web
+
+    - name: reject-empty-selector
+      try:
+        - script:
+            content: |
+              set +e
+              OUTPUT=$(kubectl apply -n "$NAMESPACE" -f - 2>&1 <<'YAML'
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: NetworkRule
+              metadata:
+                name: e2e-rule-empty-selector
+              spec:
+                vpcRef: vpc-a
+                vpcAttachmentRef: vpc-a-attachment
+                vipAddresses:
+                  - 2001:db8:1::11
+                protocol: tcp
+                port: 443
+                backendSelector: {}
+                backendPort: 8443
+              YAML
+              )
+              EXIT=$?
+              set -e
+              if [ "$EXIT" -eq 0 ]; then
+                echo "ERROR: expected rejection of an empty backendSelector but the resource was accepted"
+                exit 1
+              fi
+              case "$OUTPUT" in
+                *"backendSelector must not be empty"*) ;;
+                *) echo "ERROR: rejected for the wrong reason: $OUTPUT"; exit 1 ;;
+              esac
+              echo "OK: empty backendSelector correctly rejected"
+
+    - name: reject-static-backends
+      try:
+        - script:
+            content: |
+              set +e
+              OUTPUT=$(kubectl apply -n "$NAMESPACE" -f - 2>&1 <<'YAML'
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: NetworkRule
+              metadata:
+                name: e2e-rule-static-backends
+              spec:
+                vpcRef: vpc-a
+                vpcAttachmentRef: vpc-a-attachment
+                vipAddresses:
+                  - 2001:db8:1::12
+                protocol: tcp
+                port: 443
+                backends:
+                  - address: fd00:10:1::1
+                    port: 8443
+              YAML
+              )
+              EXIT=$?
+              set -e
+              if [ "$EXIT" -eq 0 ]; then
+                echo "ERROR: expected rejection of a rule with static backends but the resource was accepted"
+                exit 1
+              fi
+              case "$OUTPUT" in
+                *'unknown field "spec.backends"'*) ;;
+                *) echo "ERROR: rejected for the wrong reason: $OUTPUT"; exit 1 ;;
+              esac
+              echo "OK: rule with static backends correctly rejected"
+
+    - name: reject-binding-without-vpcref
+      try:
+        - script:
+            content: |
+              set +e
+              OUTPUT=$(kubectl apply -n "$NAMESPACE" -f - 2>&1 <<'YAML'
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: ServiceVIPBinding
+              metadata:
+                name: e2e-binding-no-vpcref
+              spec:
+                targetRef:
+                  kind: Node
+                  name: node-a
+                vipAddress: 2001:db8:1::10
+                port: 443
+                protocol: tcp
+                backendAddress: fd00:10:1::1
+                backendPort: 8443
+                egressKind: veth
+              YAML
+              )
+              EXIT=$?
+              set -e
+              if [ "$EXIT" -eq 0 ]; then
+                echo "ERROR: expected rejection of a ServiceVIPBinding with no vpcRef but the resource was accepted"
+                exit 1
+              fi
+              case "$OUTPUT" in
+                *"vpcRef"*) ;;
+                *) echo "ERROR: rejected for the wrong reason: $OUTPUT"; exit 1 ;;
+              esac
+              echo "OK: ServiceVIPBinding with no vpcRef correctly rejected"

@@ -374,6 +374,12 @@ flow (internal/maglev), and forwards without rewriting anything —
 backend selection never needs a single "owning" node the way Full-NAT's
 SNAT-source model did.
 
+Backends are not listed. BackendSelector picks the VPCAttachments that
+serve the rule, so the backend set follows attachments as they are
+created, deleted or moved to another node, and galactic-router on each
+node generates the ServiceVIPBinding its backends need from the same
+selection.
+
 
 
 
@@ -387,24 +393,6 @@ SNAT-source model did.
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[NetworkRuleSpec](#networkrulespec)_ |  |  |  |
 | `status` _[NetworkRuleStatus](#networkrulestatus)_ |  |  |  |
-
-
-#### NetworkRuleBackend
-
-
-
-NetworkRuleBackend is a single backend endpoint that ingress traffic
-matching a NetworkRule's VIP addresses is load-balanced to.
-
-
-
-_Appears in:_
-- [NetworkRuleSpec](#networkrulespec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `address` _string_ | Address is the backend's IPv4 or IPv6 address. |  | MaxLength: 45 <br />Required: \{\} <br /> |
-| `port` _integer_ | Port is the backend's destination port. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
 
 
 #### NetworkRuleProtocol
@@ -448,7 +436,8 @@ _Appears in:_
 | `vipAddresses` _string array_ | VIPAddresses is the list of ingress VIP addresses (IPv4 and/or IPv6)<br />this rule provisions on the assigned gateway node(s). |  | MaxItems: 8 <br />MinItems: 1 <br />Required: \{\} <br />items:MaxLength: 45 <br /> |
 | `protocol` _[NetworkRuleProtocol](#networkruleprotocol)_ | Protocol is the transport protocol matched by VIPAddresses/Port. |  | Enum: [tcp udp] <br />Required: \{\} <br /> |
 | `port` _integer_ | Port is the ingress port on VIPAddresses that this rule load-balances. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
-| `backends` _[NetworkRuleBackend](#networkrulebackend) array_ | Backends is the list of backend address:port targets that ingress<br />traffic matching VIPAddresses/Protocol/Port is load-balanced to. |  | MaxItems: 64 <br />MinItems: 1 <br />Required: \{\} <br /> |
+| `backendSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#labelselector-v1-meta)_ | BackendSelector selects the VPCAttachments (cloud.datumapis.com/v1alpha1,<br />in any namespace) that serve this rule, matched against each<br />VPCAttachment object's own labels. Only attachments whose status.vpc<br />equals VPCRef are candidates, whatever their labels, so a selector cannot<br />reach into another tenant's VPC. Each selected attachment contributes the<br />IPv6 addresses in its spec.interface.addresses as backends, on<br />BackendPort; the DSR datapath carries IPv6 backends only. An attachment<br />with no status.node or no IPv6 address is not a backend until it has<br />both. An empty selector is rejected rather than read as "every attachment<br />in the VPC". |  | Required: \{\} <br /> |
+| `backendPort` _integer_ | BackendPort is the destination port on every selected backend. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
 
 
 #### NetworkRuleStatus
@@ -651,11 +640,11 @@ ServiceVIPBinding drives one worker node's backend-side half of the
 DSR/Maglev load-balancer datapath: it tells the node which service VIP a
 specific local backend must be reachable on, so the backend can reply to
 clients directly (the "Direct Server Return" this design depends on —
-see NetworkGateway's doc comment). Written by the same controller that
-already resolves a NetworkRule's backends to worker nodes/SRv6
-information (galactic-gateway's usidresolver.go), one object per
-(node, VIP, backend) triple; consumed by a per-node reconciler running
-inside galactic-router's tenant role.
+see NetworkGateway's doc comment). Generated, never written by users:
+galactic-router on each worker node writes one object per (rule, VIP,
+backend) for every backend a NetworkRule's BackendSelector places on that
+node, owned by the rule, and the same process's per-node reconciler
+consumes it.
 
 EgressKind decides which of two backend mechanisms this object drives,
 mirroring the same veth/tap fork the SRv6 uSID decap datapath already
@@ -727,6 +716,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `targetRef` _[TargetRef](#targetref)_ | TargetRef identifies the Node this binding applies to. |  | Required: \{\} <br /> |
+| `vpcRef` _string_ | VPCRef is the opaque identifier of the VPC the backend belongs to,<br />copied from the owning NetworkRule. It names the tenant VRF the<br />binding's translation rows are written for, so two tenants using the<br />same backend address on one node never share a row. |  | MinLength: 1 <br />Required: \{\} <br /> |
 | `vipAddress` _string_ | VIPAddress is the service VIP the backend must be reachable on. |  | Required: \{\} <br /> |
 | `port` _integer_ | Port is the VIP-facing port traffic arrives on. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
 | `protocol` _[NetworkRuleProtocol](#networkruleprotocol)_ | Protocol is the transport protocol this binding applies to. |  | Enum: [tcp udp] <br />Required: \{\} <br /> |

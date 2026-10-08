@@ -10,8 +10,7 @@ spec:
     - 2001:db8:1::10
   protocol: tcp
   port: 443
-  backends:
-    - address: fd00:10:1::1
-      port: 8443
-    - address: fd00:10:1::2
-      port: 8443
+  backendSelector:
+    matchLabels:
+      app: web
+  backendPort: 8443
