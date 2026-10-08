@@ -32,22 +32,6 @@ const (
 	AcceptedReasonOwnershipDenied string = "OwnershipDenied"
 )
 
-// NetworkRuleBackend is a single backend endpoint that ingress traffic
-// matching a NetworkRule's VIP addresses is load-balanced to.
-type NetworkRuleBackend struct {
-	// Address is the backend's IPv4 or IPv6 address.
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MaxLength=45
-	// +kubebuilder:validation:XValidation:rule="isIP(self)",message="address must be a valid IPv4 or IPv6 address"
-	Address string `json:"address"`
-
-	// Port is the backend's destination port.
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=65535
-	Port int32 `json:"port"`
-}
-
 // NetworkRule defines ingress load-balancing for a single tenant
 // VPC/VPCAttachment, served by every NetworkGateway node identically
 // (anycast Direct Server Return — see NetworkGateway's doc comment). It is
@@ -65,6 +49,12 @@ type NetworkRuleBackend struct {
 // flow (internal/maglev), and forwards without rewriting anything —
 // backend selection never needs a single "owning" node the way Full-NAT's
 // SNAT-source model did.
+//
+// Backends are not listed. BackendSelector picks the VPCAttachments that
+// serve the rule, so the backend set follows attachments as they are
+// created, deleted or moved to another node, and galactic-router on each
+// node generates the ServiceVIPBinding its backends need from the same
+// selection.
 //
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
@@ -120,12 +110,25 @@ type NetworkRuleSpec struct {
 	// +kubebuilder:validation:Maximum=65535
 	Port int32 `json:"port"`
 
-	// Backends is the list of backend address:port targets that ingress
-	// traffic matching VIPAddresses/Protocol/Port is load-balanced to.
+	// BackendSelector selects the VPCAttachments (cloud.datumapis.com/v1alpha1,
+	// in any namespace) that serve this rule, matched against each
+	// VPCAttachment object's own labels. Only attachments whose status.vpc
+	// equals VPCRef are candidates, whatever their labels, so a selector cannot
+	// reach into another tenant's VPC. Each selected attachment contributes the
+	// IPv6 addresses in its spec.interface.addresses as backends, on
+	// BackendPort; the DSR datapath carries IPv6 backends only. An attachment
+	// with no status.node or no IPv6 address is not a backend until it has
+	// both. An empty selector is rejected rather than read as "every attachment
+	// in the VPC".
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinItems=1
-	// +kubebuilder:validation:MaxItems=64
-	Backends []NetworkRuleBackend `json:"backends"`
+	// +kubebuilder:validation:XValidation:rule="(has(self.matchLabels) && size(self.matchLabels) > 0) || (has(self.matchExpressions) && size(self.matchExpressions) > 0)",message="backendSelector must not be empty"
+	BackendSelector metav1.LabelSelector `json:"backendSelector"`
+
+	// BackendPort is the destination port on every selected backend.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	BackendPort int32 `json:"backendPort"`
 }
 
 // NetworkRuleStatus defines the observed state of a NetworkRule.
