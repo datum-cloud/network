@@ -29,6 +29,9 @@ spec:
     - jsonPath: .status.shardAddressIPv4
       name: IPV4
       type: string
+    - jsonPath: .spec.drain
+      name: DRAIN
+      type: boolean
     - jsonPath: .metadata.creationTimestamp
       name: AGE
       type: date
@@ -120,6 +123,22 @@ spec:
               is therefore accepted and is unattributable, which is a fact about the
               allocation rather than something a schema can repair.
             properties:
+              drain:
+                description: |-
+                  Drain stops this shard from taking new tenants while it keeps serving
+                  the ones it has. Compute nodes that spread egress across a cluster's
+                  shards give a draining shard no share of new tenant addresses, but keep
+                  sending it every flow already pinned to it until that flow goes idle, so
+                  established sessions finish where their translation state lives.
+
+                  It changes nothing on the shard itself: the shard keeps translating,
+                  advertising its SID and receiving replies. A shard is safe to remove
+                  once its session count has fallen to zero. Clearing it puts the shard
+                  back into rotation.
+
+                  Compute nodes that send each tenant to a single configured shard ignore
+                  it.
+                type: boolean
               nat64Prefix:
                 description: |-
                   NAT64Prefix is the IPv6 prefix whose synthesized addresses this shard
