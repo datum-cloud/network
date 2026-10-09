@@ -18,29 +18,28 @@ const (
 	NetworkRuleProtocolUDP NetworkRuleProtocol = "udp"
 )
 
-// Accepted reasons — used as Accepted.Reason on NetworkRule, set by the
-// admission webhook that verifies the requester is authorized for the
-// vpcRef/vpcAttachmentRef named in the rule.
+// Accepted reasons — used as Accepted.Reason on NetworkRule (and reused by
+// NetworkEgressPolicy), set by the admission webhook that verifies the
+// requester is authorized for the VPC resources the object references.
 const (
 	// AcceptedReasonOwnershipVerified indicates admission verified the
-	// requester is authorized for the target VPC/VPCAttachment.
+	// requester is authorized for the VPC resources the object references.
 	AcceptedReasonOwnershipVerified string = "OwnershipVerified"
 
-	// AcceptedReasonOwnershipDenied indicates admission rejected the rule
-	// because the requester is not authorized for the target
-	// VPC/VPCAttachment named in vpcRef/vpcAttachmentRef.
+	// AcceptedReasonOwnershipDenied indicates admission rejected the object
+	// because the requester is not authorized for the VPC resources it
+	// references.
 	AcceptedReasonOwnershipDenied string = "OwnershipDenied"
 )
 
-// NetworkRule defines ingress load-balancing for a single tenant
-// VPC/VPCAttachment, served by every NetworkGateway node identically
-// (anycast Direct Server Return — see NetworkGateway's doc comment). It is
-// namespaced (deployed to galactic-system) and tenant-writable; the
-// vpcRef/vpcAttachmentRef fields are opaque string identifiers because the
-// VPC API is owned by a separate companion operator, not this repo. An
-// admission webhook (implemented by the consuming controller) must verify
-// the requester is authorized for vpcRef/vpcAttachmentRef before a rule is
-// accepted — see the Accepted condition.
+// NetworkRule defines ingress load-balancing for a single tenant VPC, served
+// by every NetworkGateway node identically (anycast Direct Server Return —
+// see NetworkGateway's doc comment). It is namespaced (deployed to
+// galactic-system) and tenant-writable; vpcRef is an opaque string identifier
+// because the VPC API is owned by a separate companion operator, not this
+// repo. An admission webhook (implemented by the consuming controller) must
+// verify the requester is authorized for vpcRef before a rule is accepted —
+// see the Accepted condition.
 //
 // Unlike the earlier Full-NAT design this type originally described, there
 // is no primary/secondary gateway node for a rule: every NetworkGateway
@@ -72,7 +71,7 @@ type NetworkRule struct {
 }
 
 // NetworkRuleSpec defines the desired ingress load-balancing state for a
-// tenant VPC/VPCAttachment.
+// tenant VPC.
 type NetworkRuleSpec struct {
 	// VPCRef is the opaque identifier of the target VPC this rule applies
 	// to. This repo does not own the VPC API and does not validate the
@@ -82,13 +81,6 @@ type NetworkRuleSpec struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	VPCRef string `json:"vpcRef"`
-
-	// VPCAttachmentRef is the opaque identifier of the target
-	// VPCAttachment this rule applies to. Like VPCRef, this is an opaque
-	// string reference validated by the admission webhook, not by this API.
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	VPCAttachmentRef string `json:"vpcAttachmentRef"`
 
 	// VIPAddresses is the list of ingress VIP addresses (IPv4 and/or IPv6)
 	// this rule provisions on the assigned gateway node(s).

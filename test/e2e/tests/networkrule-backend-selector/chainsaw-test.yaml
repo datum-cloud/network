@@ -7,7 +7,8 @@ spec:
     Verify the schema rules for a NetworkRule's backend selection: a rule with
     a non-empty backendSelector and a backendPort is accepted, a rule with an
     empty backendSelector is rejected, and a rule that still lists static
-    backends is rejected, since that field no longer exists. Also verifies that a
+    backends or a vpcAttachmentRef is rejected, since neither field exists any
+    more. Also verifies that a
     ServiceVIPBinding requires vpcRef. Does not require any operator to be
     running; every rule under test is enforced by the API server alone.
   steps:
@@ -21,7 +22,6 @@ spec:
                 name: e2e-rule-selector
               spec:
                 vpcRef: vpc-a
-                vpcAttachmentRef: vpc-a-attachment
                 vipAddresses:
                   - 2001:db8:1::10
                 protocol: tcp
@@ -54,7 +54,6 @@ spec:
                 name: e2e-rule-empty-selector
               spec:
                 vpcRef: vpc-a
-                vpcAttachmentRef: vpc-a-attachment
                 vipAddresses:
                   - 2001:db8:1::11
                 protocol: tcp
@@ -87,7 +86,6 @@ spec:
                 name: e2e-rule-static-backends
               spec:
                 vpcRef: vpc-a
-                vpcAttachmentRef: vpc-a-attachment
                 vipAddresses:
                   - 2001:db8:1::12
                 protocol: tcp
@@ -108,6 +106,41 @@ spec:
                 *) echo "ERROR: rejected for the wrong reason: $OUTPUT"; exit 1 ;;
               esac
               echo "OK: rule with static backends correctly rejected"
+
+    - name: reject-vpc-attachment-ref
+      try:
+        - script:
+            content: |
+              set +e
+              OUTPUT=$(kubectl apply -n "$NAMESPACE" -f - 2>&1 <<'YAML'
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: NetworkRule
+              metadata:
+                name: e2e-rule-vpc-attachment-ref
+              spec:
+                vpcRef: vpc-a
+                vpcAttachmentRef: vpc-a-attachment
+                vipAddresses:
+                  - 2001:db8:1::13
+                protocol: tcp
+                port: 443
+                backendSelector:
+                  matchLabels:
+                    app: web
+                backendPort: 8443
+              YAML
+              )
+              EXIT=$?
+              set -e
+              if [ "$EXIT" -eq 0 ]; then
+                echo "ERROR: expected rejection of a rule with vpcAttachmentRef but the resource was accepted"
+                exit 1
+              fi
+              case "$OUTPUT" in
+                *'unknown field "spec.vpcAttachmentRef"'*) ;;
+                *) echo "ERROR: rejected for the wrong reason: $OUTPUT"; exit 1 ;;
+              esac
+              echo "OK: rule with vpcAttachmentRef correctly rejected"
 
     - name: reject-binding-without-vpcref
       try:

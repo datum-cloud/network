@@ -39,11 +39,11 @@ spec:
           backend list.
 
           It is namespaced (deployed to galactic-system) and tenant-writable; like
-          NetworkRule, vpcRef/vpcAttachmentRef are opaque string identifiers because
-          the VPC API is owned by a separate companion operator, not this repo. An
-          admission webhook (implemented by the consuming controller) must verify
-          the requester is authorized for vpcRef/vpcAttachmentRef before a policy is
-          accepted — see the Accepted condition.
+          NetworkRule's vpcRef, vpcRef/vpcAttachmentRef are opaque string identifiers
+          because the VPC API is owned by a separate companion operator, not this
+          repo. An admission webhook (implemented by the consuming controller) must
+          verify the requester is authorized for vpcRef/vpcAttachmentRef before a
+          policy is accepted — see the Accepted condition.
 
           Presence of an accepted NetworkEgressPolicy resolves only *enablement*
           (should this tenant's VRF get an egress route toward the shared
