@@ -5,7 +5,6 @@ metadata:
   namespace: galactic-system
 spec:
   vpcRef: vpc-a
-  vpcAttachmentRef: vpc-a-iad
   vipAddresses:
     - 2001:db8:1::10
   protocol: tcp

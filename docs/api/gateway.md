@@ -212,11 +212,11 @@ of an egress flow is an arbitrary internet address, not a pre-configured
 backend list.
 
 It is namespaced (deployed to galactic-system) and tenant-writable; like
-NetworkRule, vpcRef/vpcAttachmentRef are opaque string identifiers because
-the VPC API is owned by a separate companion operator, not this repo. An
-admission webhook (implemented by the consuming controller) must verify
-the requester is authorized for vpcRef/vpcAttachmentRef before a policy is
-accepted — see the Accepted condition.
+NetworkRule's vpcRef, vpcRef/vpcAttachmentRef are opaque string identifiers
+because the VPC API is owned by a separate companion operator, not this
+repo. An admission webhook (implemented by the consuming controller) must
+verify the requester is authorized for vpcRef/vpcAttachmentRef before a
+policy is accepted — see the Accepted condition.
 
 Presence of an accepted NetworkEgressPolicy resolves only *enablement*
 (should this tenant's VRF get an egress route toward the shared
@@ -356,15 +356,14 @@ _Appears in:_
 
 
 
-NetworkRule defines ingress load-balancing for a single tenant
-VPC/VPCAttachment, served by every NetworkGateway node identically
-(anycast Direct Server Return — see NetworkGateway's doc comment). It is
-namespaced (deployed to galactic-system) and tenant-writable; the
-vpcRef/vpcAttachmentRef fields are opaque string identifiers because the
-VPC API is owned by a separate companion operator, not this repo. An
-admission webhook (implemented by the consuming controller) must verify
-the requester is authorized for vpcRef/vpcAttachmentRef before a rule is
-accepted — see the Accepted condition.
+NetworkRule defines ingress load-balancing for a single tenant VPC, served
+by every NetworkGateway node identically (anycast Direct Server Return —
+see NetworkGateway's doc comment). It is namespaced (deployed to
+galactic-system) and tenant-writable; vpcRef is an opaque string identifier
+because the VPC API is owned by a separate companion operator, not this
+repo. An admission webhook (implemented by the consuming controller) must
+verify the requester is authorized for vpcRef before a rule is accepted —
+see the Accepted condition.
 
 Unlike the earlier Full-NAT design this type originally described, there
 is no primary/secondary gateway node for a rule: every NetworkGateway
@@ -422,7 +421,7 @@ _Appears in:_
 
 
 NetworkRuleSpec defines the desired ingress load-balancing state for a
-tenant VPC/VPCAttachment.
+tenant VPC.
 
 
 
@@ -432,7 +431,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `vpcRef` _string_ | VPCRef is the opaque identifier of the target VPC this rule applies<br />to. This repo does not own the VPC API and does not validate the<br />identifier beyond non-emptiness; the admission webhook of the<br />consuming controller is responsible for verifying the requester is<br />authorized for this VPC before the rule is accepted. |  | MinLength: 1 <br />Required: \{\} <br /> |
-| `vpcAttachmentRef` _string_ | VPCAttachmentRef is the opaque identifier of the target<br />VPCAttachment this rule applies to. Like VPCRef, this is an opaque<br />string reference validated by the admission webhook, not by this API. |  | MinLength: 1 <br />Required: \{\} <br /> |
 | `vipAddresses` _string array_ | VIPAddresses is the list of ingress VIP addresses (IPv4 and/or IPv6)<br />this rule provisions on the assigned gateway node(s). |  | MaxItems: 8 <br />MinItems: 1 <br />Required: \{\} <br />items:MaxLength: 45 <br /> |
 | `protocol` _[NetworkRuleProtocol](#networkruleprotocol)_ | Protocol is the transport protocol matched by VIPAddresses/Port. |  | Enum: [tcp udp] <br />Required: \{\} <br /> |
 | `port` _integer_ | Port is the ingress port on VIPAddresses that this rule load-balances. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |

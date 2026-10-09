@@ -15,11 +15,10 @@ func newTestRule() *NetworkRule {
 		},
 		ObjectMeta: metav1.ObjectMeta{Name: "test-rule", Namespace: "galactic-system"},
 		Spec: NetworkRuleSpec{
-			VPCRef:           "vpc-a",
-			VPCAttachmentRef: "vpcattachment-a",
-			VIPAddresses:     []string{"2001:db8:1::10"},
-			Protocol:         NetworkRuleProtocolTCP,
-			Port:             443,
+			VPCRef:       "vpc-a",
+			VIPAddresses: []string{"2001:db8:1::10"},
+			Protocol:     NetworkRuleProtocolTCP,
+			Port:         443,
 			BackendSelector: metav1.LabelSelector{
 				MatchLabels: map[string]string{"app": "web"},
 			},
@@ -76,9 +75,6 @@ func TestNetworkRuleJSONRoundTrip(t *testing.T) {
 
 	if got.Spec.VPCRef != orig.Spec.VPCRef {
 		t.Errorf("VPCRef: got %q, want %q", got.Spec.VPCRef, orig.Spec.VPCRef)
-	}
-	if got.Spec.VPCAttachmentRef != orig.Spec.VPCAttachmentRef {
-		t.Errorf("VPCAttachmentRef: got %q, want %q", got.Spec.VPCAttachmentRef, orig.Spec.VPCAttachmentRef)
 	}
 	if got.Spec.BackendSelector.MatchLabels["app"] != "web" || len(got.Spec.BackendSelector.MatchExpressions) != 1 {
 		t.Errorf("BackendSelector: got %+v", got.Spec.BackendSelector)

@@ -33,15 +33,14 @@ spec:
     schema:
       openAPIV3Schema:
         description: |-
-          NetworkRule defines ingress load-balancing for a single tenant
-          VPC/VPCAttachment, served by every NetworkGateway node identically
-          (anycast Direct Server Return — see NetworkGateway's doc comment). It is
-          namespaced (deployed to galactic-system) and tenant-writable; the
-          vpcRef/vpcAttachmentRef fields are opaque string identifiers because the
-          VPC API is owned by a separate companion operator, not this repo. An
-          admission webhook (implemented by the consuming controller) must verify
-          the requester is authorized for vpcRef/vpcAttachmentRef before a rule is
-          accepted — see the Accepted condition.
+          NetworkRule defines ingress load-balancing for a single tenant VPC, served
+          by every NetworkGateway node identically (anycast Direct Server Return —
+          see NetworkGateway's doc comment). It is namespaced (deployed to
+          galactic-system) and tenant-writable; vpcRef is an opaque string identifier
+          because the VPC API is owned by a separate companion operator, not this
+          repo. An admission webhook (implemented by the consuming controller) must
+          verify the requester is authorized for vpcRef before a rule is accepted —
+          see the Accepted condition.
 
           Unlike the earlier Full-NAT design this type originally described, there
           is no primary/secondary gateway node for a rule: every NetworkGateway
@@ -77,7 +76,7 @@ spec:
           spec:
             description: |-
               NetworkRuleSpec defines the desired ingress load-balancing state for a
-              tenant VPC/VPCAttachment.
+              tenant VPC.
             properties:
               backendPort:
                 description: BackendPort is the destination port on every selected
@@ -173,13 +172,6 @@ spec:
                 x-kubernetes-validations:
                 - message: vipAddresses must all be valid IPv4 or IPv6 addresses
                   rule: self.all(v, isIP(v))
-              vpcAttachmentRef:
-                description: |-
-                  VPCAttachmentRef is the opaque identifier of the target
-                  VPCAttachment this rule applies to. Like VPCRef, this is an opaque
-                  string reference validated by the admission webhook, not by this API.
-                minLength: 1
-                type: string
               vpcRef:
                 description: |-
                   VPCRef is the opaque identifier of the target VPC this rule applies
@@ -195,7 +187,6 @@ spec:
             - port
             - protocol
             - vipAddresses
-            - vpcAttachmentRef
             - vpcRef
             type: object
           status:
