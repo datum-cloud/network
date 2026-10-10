@@ -49,6 +49,7 @@ import (
 // +kubebuilder:printcolumn:name="SHARD-SID",type="string",JSONPath=".status.shardSID"
 // +kubebuilder:printcolumn:name="IPV6",type="string",JSONPath=".status.shardAddressIPv6"
 // +kubebuilder:printcolumn:name="IPV4",type="string",JSONPath=".status.shardAddressIPv4"
+// +kubebuilder:printcolumn:name="DRAIN",type="boolean",JSONPath=".spec.drain"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 type EgressShard struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -313,6 +314,22 @@ type EgressShardSpec struct {
 	// expire.
 	// +optional
 	TranslateWellKnownPrefix bool `json:"translateWellKnownPrefix,omitempty"`
+
+	// Drain stops this shard from taking new tenants while it keeps serving
+	// the ones it has. Compute nodes that spread egress across a cluster's
+	// shards give a draining shard no share of new tenant addresses, but keep
+	// sending it every flow already pinned to it until that flow goes idle, so
+	// established sessions finish where their translation state lives.
+	//
+	// It changes nothing on the shard itself: the shard keeps translating,
+	// advertising its SID and receiving replies. A shard is safe to remove
+	// once its session count has fallen to zero. Clearing it puts the shard
+	// back into rotation.
+	//
+	// Compute nodes that send each tenant to a single configured shard ignore
+	// it.
+	// +optional
+	Drain bool `json:"drain,omitempty"`
 }
 
 // EgressShardStatus defines the observed state of an EgressShard.

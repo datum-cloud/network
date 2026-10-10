@@ -11,7 +11,8 @@ spec:
     rejected. Also verifies that a claim reference defaults its apiGroup and
     kind, and that an address and a claim reference are independently
     optional. Also verifies that translateWellKnownPrefix requires nat64Prefix
-    and, unlike it, can be turned off again. Also verifies that status remains writable,
+    and, unlike it, can be turned off again. Also verifies that drain can be set
+    and cleared on a shard whose addresses are fixed. Also verifies that status remains writable,
     since status reports what the datapath actually programmed and must still
     converge. Does not require any operator to be running — every rule under
     test is enforced by the API server alone.
@@ -404,6 +405,23 @@ spec:
                 exit 1
               fi
               echo "OK: translateWellKnownPrefix enabled with nat64Prefix set, then disabled"
+
+    - name: toggle-drain
+      try:
+        - script:
+            content: |
+              set -e
+              kubectl patch egressshard e2e-egress-shard -n "$NAMESPACE" --type=merge -p '
+              {"spec":{"drain":true}}'
+              ON=$(kubectl get egressshard e2e-egress-shard -n "$NAMESPACE" -o jsonpath='{.spec.drain}')
+              kubectl patch egressshard e2e-egress-shard -n "$NAMESPACE" --type=merge -p '
+              {"spec":{"drain":false}}'
+              OFF=$(kubectl get egressshard e2e-egress-shard -n "$NAMESPACE" -o jsonpath='{.spec.drain}')
+              if [ "$ON" != "true" ] || [ "$OFF" != "false" ]; then
+                echo "ERROR: drain toggled to $ON then $OFF, want true then false"
+                exit 1
+              fi
+              echo "OK: drain set on an addressed shard, then cleared"
 
     - name: accept-status-changes
       try:
