@@ -166,8 +166,10 @@ spec:
                   Only IPv6 addresses are admitted until the gateway datapath serves IPv4
                   VIPs (datum-cloud/galactic#705). A service created with an IPv4 VIP before
                   this restriction keeps it while the list is unchanged, since the API
-                  server ratchets validation of an unchanged field; any edit to the list
-                  must drop it. The gateways do not load or advertise an IPv4 VIP.
+                  server ratchets validation of an unchanged field on Kubernetes 1.30 and
+                  later; any edit to the list must drop it, and on an older API server any
+                  update to such a service is refused. The gateways do not load or advertise
+                  an IPv4 VIP.
                 items:
                   maxLength: 45
                   type: string
