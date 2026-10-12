@@ -374,11 +374,10 @@ flow (internal/maglev), and forwards without rewriting anything —
 backend selection never needs a single "owning" node the way Full-NAT's
 SNAT-source model did.
 
-Backends are not listed. BackendSelector picks the VPCAttachments that
-serve the rule, so the backend set follows attachments as they are
-created, deleted or moved to another node, and galactic-router on each
-node generates the ServiceVIPBinding its backends need from the same
-selection.
+BackendSelector can pick VPCAttachments by label, while BackendAddresses
+can pin an explicit subset of their IPv6 addresses. Either field may select
+backends, so galactic-router on each node generates ServiceVIPBindings from
+the same VPC-scoped attachment set as the gateways.
 
 
 
@@ -435,8 +434,8 @@ _Appears in:_
 | `vipAddresses` _string array_ | VIPAddresses is the list of ingress VIP addresses (IPv4 and/or IPv6)<br />this rule provisions on the assigned gateway node(s). |  | MaxItems: 8 <br />MinItems: 1 <br />Required: \{\} <br />items:MaxLength: 45 <br /> |
 | `protocol` _[NetworkRuleProtocol](#networkruleprotocol)_ | Protocol is the transport protocol matched by VIPAddresses/Port. |  | Enum: [tcp udp] <br />Required: \{\} <br /> |
 | `port` _integer_ | Port is the ingress port on VIPAddresses that this rule load-balances. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
-| `backendSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#labelselector-v1-meta)_ | BackendSelector selects the VPCAttachments (cloud.datumapis.com/v1alpha1,<br />in any namespace) that serve this rule, matched against each<br />VPCAttachment object's own labels. Only attachments whose status.vpc<br />equals VPCRef are candidates, whatever their labels, so a selector cannot<br />reach into another tenant's VPC. Each selected attachment contributes the<br />IPv6 addresses in its spec.interface.addresses as backends, on<br />BackendPort; the DSR datapath carries IPv6 backends only. An attachment<br />with no status.node or no IPv6 address is not a backend until it has<br />both. An empty selector is rejected rather than read as "every attachment<br />in the VPC". |  | Required: \{\} <br /> |
-| `backendAddresses` _string_ | BackendAddresses, when set, limits the selected VPCAttachment backends<br />to these IPv6 addresses. An explicitly empty list selects no backends;<br />omitting the field preserves selector-only behavior. The gateway and<br />backend nodes apply the same filter, so removing an address removes both<br />its ingress selection and its ServiceVIPBinding. The addresses must still<br />belong to selected attachments in VPCRef; this field cannot authorize a<br />backend in another VPC. |  | MaxItems: 256 <br /> |
+| `backendSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#labelselector-v1-meta)_ | BackendSelector selects the VPCAttachments (cloud.datumapis.com/v1alpha1,<br />in any namespace) that serve this rule, matched against each<br />VPCAttachment object's own labels. Only attachments whose status.vpc<br />equals VPCRef are candidates, whatever their labels, so a selector cannot<br />reach into another tenant's VPC. Each selected attachment contributes the<br />IPv6 addresses in its spec.interface.addresses as backends, on<br />BackendPort; the DSR datapath carries IPv6 backends only. An attachment<br />with no status.node or no IPv6 address is not a backend until it has<br />both. When omitted, BackendAddresses must be set; only attachments whose<br />authoritative status.vpc equals VPCRef are considered for those addresses. |  |  |
+| `backendAddresses` _string_ | BackendAddresses, when set, limits the VPC's VPCAttachment backends to<br />these IPv6 addresses, also applying BackendSelector if it is present. An<br />explicitly empty list selects no backends; omitting the field preserves<br />selector-only behavior. The gateway and backend nodes apply the same<br />filter, so removing an address removes both its ingress selection and its<br />ServiceVIPBinding. An address in another VPC is never selected. |  | MaxItems: 256 <br /> |
 | `backendPort` _integer_ | BackendPort is the destination port on every selected backend. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
 
 
