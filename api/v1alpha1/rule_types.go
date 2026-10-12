@@ -49,11 +49,10 @@ const (
 // backend selection never needs a single "owning" node the way Full-NAT's
 // SNAT-source model did.
 //
-// Backends are not listed. BackendSelector picks the VPCAttachments that
-// serve the rule, so the backend set follows attachments as they are
-// created, deleted or moved to another node, and galactic-router on each
-// node generates the ServiceVIPBinding its backends need from the same
-// selection.
+// BackendSelector can pick VPCAttachments by label, while BackendAddresses
+// can pin an explicit subset of their IPv6 addresses. Either field may select
+// backends, so galactic-router on each node generates ServiceVIPBindings from
+// the same VPC-scoped attachment set as the gateways.
 //
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
@@ -72,6 +71,7 @@ type NetworkRule struct {
 
 // NetworkRuleSpec defines the desired ingress load-balancing state for a
 // tenant VPC.
+// +kubebuilder:validation:XValidation:rule="has(self.backendAddresses) || (has(self.backendSelector) && ((has(self.backendSelector.matchLabels) && size(self.backendSelector.matchLabels) > 0) || (has(self.backendSelector.matchExpressions) && size(self.backendSelector.matchExpressions) > 0)))",message="backendSelector must be nonempty unless backendAddresses is set"
 type NetworkRuleSpec struct {
 	// VPCRef is the opaque identifier of the target VPC this rule applies
 	// to. This repo does not own the VPC API and does not validate the
@@ -110,19 +110,17 @@ type NetworkRuleSpec struct {
 	// IPv6 addresses in its spec.interface.addresses as backends, on
 	// BackendPort; the DSR datapath carries IPv6 backends only. An attachment
 	// with no status.node or no IPv6 address is not a backend until it has
-	// both. An empty selector is rejected rather than read as "every attachment
-	// in the VPC".
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:XValidation:rule="(has(self.matchLabels) && size(self.matchLabels) > 0) || (has(self.matchExpressions) && size(self.matchExpressions) > 0)",message="backendSelector must not be empty"
-	BackendSelector metav1.LabelSelector `json:"backendSelector"`
+	// both. When omitted, BackendAddresses must be set; only attachments whose
+	// authoritative status.vpc equals VPCRef are considered for those addresses.
+	// +optional
+	BackendSelector metav1.LabelSelector `json:"backendSelector,omitempty"`
 
-	// BackendAddresses, when set, limits the selected VPCAttachment backends
-	// to these IPv6 addresses. An explicitly empty list selects no backends;
-	// omitting the field preserves selector-only behavior. The gateway and
-	// backend nodes apply the same filter, so removing an address removes both
-	// its ingress selection and its ServiceVIPBinding. The addresses must still
-	// belong to selected attachments in VPCRef; this field cannot authorize a
-	// backend in another VPC.
+	// BackendAddresses, when set, limits the VPC's VPCAttachment backends to
+	// these IPv6 addresses, also applying BackendSelector if it is present. An
+	// explicitly empty list selects no backends; omitting the field preserves
+	// selector-only behavior. The gateway and backend nodes apply the same
+	// filter, so removing an address removes both its ingress selection and its
+	// ServiceVIPBinding. An address in another VPC is never selected.
 	// +optional
 	// +kubebuilder:validation:MaxItems=256
 	// +kubebuilder:validation:XValidation:rule="self.all(a, isIP(a) && a.contains(':'))",message="backendAddresses must contain IPv6 addresses"
