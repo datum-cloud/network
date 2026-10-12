@@ -31,16 +31,22 @@ func newTestRule() *NetworkRule {
 // copy: mutations to slices in the copy must not affect the original.
 func TestNetworkRuleDeepCopy(t *testing.T) {
 	orig := newTestRule()
+	addresses := []string{"fd00:10::1"}
+	orig.Spec.BackendAddresses = &addresses
 	dup := orig.DeepCopy()
 
 	dup.Spec.VIPAddresses[0] = "2001:db8:1::20"
 	dup.Spec.BackendSelector.MatchLabels["app"] = "api"
+	(*dup.Spec.BackendAddresses)[0] = "fd00:10::2"
 
 	if orig.Spec.VIPAddresses[0] != "2001:db8:1::10" {
 		t.Errorf("VIPAddresses[0] mutated: got %q", orig.Spec.VIPAddresses[0])
 	}
 	if orig.Spec.BackendSelector.MatchLabels["app"] != "web" {
 		t.Errorf("BackendSelector.MatchLabels mutated: got %v", orig.Spec.BackendSelector.MatchLabels)
+	}
+	if (*orig.Spec.BackendAddresses)[0] != "fd00:10::1" {
+		t.Errorf("BackendAddresses mutated: got %v", *orig.Spec.BackendAddresses)
 	}
 }
 
@@ -144,6 +150,24 @@ func TestNetworkRuleBackendFieldNames(t *testing.T) {
 	}
 	if _, ok := m["backends"]; ok {
 		t.Errorf("unexpected \"backends\" key: %v", m)
+	}
+	if _, ok := m["backendAddresses"]; ok {
+		t.Errorf("omitted backendAddresses must preserve selector-only behavior: %v", m)
+	}
+
+	empty := []string{}
+	rule := newTestRule()
+	rule.Spec.BackendAddresses = &empty
+	data, err = json.Marshal(rule.Spec)
+	if err != nil {
+		t.Fatalf("Marshal explicit empty backendAddresses: %v", err)
+	}
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("Unmarshal explicit empty backendAddresses: %v", err)
+	}
+	addresses, ok := m["backendAddresses"].([]any)
+	if !ok || len(addresses) != 0 {
+		t.Errorf("explicit empty backendAddresses = %v, want []", m["backendAddresses"])
 	}
 }
 

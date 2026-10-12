@@ -116,6 +116,19 @@ type NetworkRuleSpec struct {
 	// +kubebuilder:validation:XValidation:rule="(has(self.matchLabels) && size(self.matchLabels) > 0) || (has(self.matchExpressions) && size(self.matchExpressions) > 0)",message="backendSelector must not be empty"
 	BackendSelector metav1.LabelSelector `json:"backendSelector"`
 
+	// BackendAddresses, when set, limits the selected VPCAttachment backends
+	// to these IPv6 addresses. An explicitly empty list selects no backends;
+	// omitting the field preserves selector-only behavior. The gateway and
+	// backend nodes apply the same filter, so removing an address removes both
+	// its ingress selection and its ServiceVIPBinding. The addresses must still
+	// belong to selected attachments in VPCRef; this field cannot authorize a
+	// backend in another VPC.
+	// +optional
+	// +kubebuilder:validation:MaxItems=256
+	// +kubebuilder:validation:XValidation:rule="self.all(a, isIP(a) && a.contains(':'))",message="backendAddresses must contain IPv6 addresses"
+	// +listType=set
+	BackendAddresses *[]string `json:"backendAddresses,omitempty"`
+
 	// BackendPort is the destination port on every selected backend.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Minimum=1
