@@ -78,6 +78,23 @@ spec:
               NetworkRuleSpec defines the desired ingress load-balancing state for a
               tenant VPC.
             properties:
+              backendAddresses:
+                description: |-
+                  BackendAddresses, when set, limits the selected VPCAttachment backends
+                  to these IPv6 addresses. An explicitly empty list selects no backends;
+                  omitting the field preserves selector-only behavior. The gateway and
+                  backend nodes apply the same filter, so removing an address removes both
+                  its ingress selection and its ServiceVIPBinding. The addresses must still
+                  belong to selected attachments in VPCRef; this field cannot authorize a
+                  backend in another VPC.
+                items:
+                  type: string
+                maxItems: 256
+                type: array
+                x-kubernetes-list-type: set
+                x-kubernetes-validations:
+                - message: backendAddresses must contain IPv6 addresses
+                  rule: self.all(a, isIP(a) && a.contains(':'))
               backendPort:
                 description: BackendPort is the destination port on every selected
                   backend.
