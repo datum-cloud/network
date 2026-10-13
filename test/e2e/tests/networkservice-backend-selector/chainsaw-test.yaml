@@ -1,25 +1,25 @@
 apiVersion: chainsaw.kyverno.io/v1alpha1
 kind: Test
 metadata:
-  name: networkrule-backend-selector
+  name: networkservice-backend-selector
 spec:
   description: >
-    Verify the schema rules for a NetworkRule's backend selection: a rule with
-    a non-empty backendSelector and a backendPort is accepted, a rule with an
-    empty backendSelector is rejected, and a rule that still lists static
+    Verify the schema rules for a NetworkService's backend selection: a service with
+    a non-empty backendSelector and a backendPort is accepted, a service with an
+    empty backendSelector is rejected, and a service that still lists static
     backends or a vpcAttachmentRef is rejected, since neither field exists any
     more. Also verifies that a
     ServiceVIPBinding requires vpcRef. Does not require any operator to be
     running; every rule under test is enforced by the API server alone.
   steps:
-    - name: accept-rule-with-selector
+    - name: accept-service-with-selector
       try:
         - apply:
             resource:
               apiVersion: network.datumapis.com/v1alpha1
-              kind: NetworkRule
+              kind: NetworkService
               metadata:
-                name: e2e-rule-selector
+                name: e2e-service-selector
               spec:
                 vpcRef: vpc-a
                 vipAddresses:
@@ -33,9 +33,9 @@ spec:
         - assert:
             resource:
               apiVersion: network.datumapis.com/v1alpha1
-              kind: NetworkRule
+              kind: NetworkService
               metadata:
-                name: e2e-rule-selector
+                name: e2e-service-selector
               spec:
                 backendPort: 8443
                 backendSelector:
@@ -49,9 +49,9 @@ spec:
               set +e
               OUTPUT=$(kubectl apply -n "$NAMESPACE" -f - 2>&1 <<'YAML'
               apiVersion: network.datumapis.com/v1alpha1
-              kind: NetworkRule
+              kind: NetworkService
               metadata:
-                name: e2e-rule-empty-selector
+                name: e2e-service-empty-selector
               spec:
                 vpcRef: vpc-a
                 vipAddresses:
@@ -81,9 +81,9 @@ spec:
               set +e
               OUTPUT=$(kubectl apply -n "$NAMESPACE" -f - 2>&1 <<'YAML'
               apiVersion: network.datumapis.com/v1alpha1
-              kind: NetworkRule
+              kind: NetworkService
               metadata:
-                name: e2e-rule-static-backends
+                name: e2e-service-static-backends
               spec:
                 vpcRef: vpc-a
                 vipAddresses:
@@ -98,14 +98,14 @@ spec:
               EXIT=$?
               set -e
               if [ "$EXIT" -eq 0 ]; then
-                echo "ERROR: expected rejection of a rule with static backends but the resource was accepted"
+                echo "ERROR: expected rejection of a service with static backends but the resource was accepted"
                 exit 1
               fi
               case "$OUTPUT" in
                 *'unknown field "spec.backends"'*) ;;
                 *) echo "ERROR: rejected for the wrong reason: $OUTPUT"; exit 1 ;;
               esac
-              echo "OK: rule with static backends correctly rejected"
+              echo "OK: service with static backends correctly rejected"
 
     - name: reject-vpc-attachment-ref
       try:
@@ -114,9 +114,9 @@ spec:
               set +e
               OUTPUT=$(kubectl apply -n "$NAMESPACE" -f - 2>&1 <<'YAML'
               apiVersion: network.datumapis.com/v1alpha1
-              kind: NetworkRule
+              kind: NetworkService
               metadata:
-                name: e2e-rule-vpc-attachment-ref
+                name: e2e-service-vpc-attachment-ref
               spec:
                 vpcRef: vpc-a
                 vpcAttachmentRef: vpc-a-attachment
@@ -133,14 +133,14 @@ spec:
               EXIT=$?
               set -e
               if [ "$EXIT" -eq 0 ]; then
-                echo "ERROR: expected rejection of a rule with vpcAttachmentRef but the resource was accepted"
+                echo "ERROR: expected rejection of a service with vpcAttachmentRef but the resource was accepted"
                 exit 1
               fi
               case "$OUTPUT" in
                 *'unknown field "spec.vpcAttachmentRef"'*) ;;
                 *) echo "ERROR: rejected for the wrong reason: $OUTPUT"; exit 1 ;;
               esac
-              echo "OK: rule with vpcAttachmentRef correctly rejected"
+              echo "OK: service with vpcAttachmentRef correctly rejected"
 
     - name: reject-binding-without-vpcref
       try:
