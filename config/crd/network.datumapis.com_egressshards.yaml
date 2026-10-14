@@ -159,6 +159,24 @@ spec:
                   rule: self == '' || isCIDR(self)
                 - message: nat64Prefix is immutable once assigned
                   rule: self == oldSelf || oldSelf == ''
+              nat64Standby:
+                description: |-
+                  NAT64Standby marks this shard's ShardAddressIPv4 as not attracted to its
+                  node while a sibling NAT64 shard is up: replies to it arrive at that
+                  sibling, which holds no session for them and drops them. Compute nodes
+                  that spread egress across a cluster's shards therefore keep NAT64
+                  tenants off a standby shard while any shard without the flag can serve
+                  that NAT64 class, and place them on it only when none can. Requires
+                  ShardAddressIPv4.
+
+                  It changes nothing on the shard itself, and NAT66 placement is
+                  unaffected: the shard's IPv6 address is advertised from its own node and
+                  keeps taking NAT66 tenants. Mutable, so the flag can follow the
+                  upstream announcement it describes.
+
+                  Compute nodes that send each tenant to a single configured shard ignore
+                  it.
+                type: boolean
               shardAddressIPv4:
                 description: |-
                   ShardAddressIPv4 is the dedicated, publicly-routable IPv4 address this
@@ -362,6 +380,9 @@ spec:
             - message: translateWellKnownPrefix requires nat64Prefix
               rule: '!(has(self.translateWellKnownPrefix) && self.translateWellKnownPrefix)
                 || (has(self.nat64Prefix) && size(self.nat64Prefix) > 0)'
+            - message: nat64Standby requires shardAddressIPv4
+              rule: '!(has(self.nat64Standby) && self.nat64Standby) || (has(self.shardAddressIPv4)
+                && size(self.shardAddressIPv4) > 0)'
           status:
             description: |-
               EgressShardStatus defines the observed state of an EgressShard.
