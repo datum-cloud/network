@@ -7,17 +7,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func newTestRule() *NetworkRule {
-	return &NetworkRule{
+func newTestService() *NetworkService {
+	return &NetworkService{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "network.datumapis.com/v1alpha1",
-			Kind:       "NetworkRule",
+			Kind:       "NetworkService",
 		},
-		ObjectMeta: metav1.ObjectMeta{Name: "test-rule", Namespace: "galactic-system"},
-		Spec: NetworkRuleSpec{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-service", Namespace: "galactic-system"},
+		Spec: NetworkServiceSpec{
 			VPCRef:       "vpc-a",
 			VIPAddresses: []string{"2001:db8:1::10"},
-			Protocol:     NetworkRuleProtocolTCP,
+			Protocol:     NetworkServiceProtocolTCP,
 			Port:         443,
 			BackendSelector: metav1.LabelSelector{
 				MatchLabels: map[string]string{"app": "web"},
@@ -27,10 +27,10 @@ func newTestRule() *NetworkRule {
 	}
 }
 
-// TestNetworkRuleDeepCopy verifies that DeepCopy produces an independent
+// TestNetworkServiceDeepCopy verifies that DeepCopy produces an independent
 // copy: mutations to slices in the copy must not affect the original.
-func TestNetworkRuleDeepCopy(t *testing.T) {
-	orig := newTestRule()
+func TestNetworkServiceDeepCopy(t *testing.T) {
+	orig := newTestService()
 	dup := orig.DeepCopy()
 
 	dup.Spec.VIPAddresses[0] = "2001:db8:1::20"
@@ -44,18 +44,18 @@ func TestNetworkRuleDeepCopy(t *testing.T) {
 	}
 }
 
-// TestNetworkRuleDeepCopyNil verifies DeepCopy on a nil pointer returns nil.
-func TestNetworkRuleDeepCopyNil(t *testing.T) {
-	var r *NetworkRule
+// TestNetworkServiceDeepCopyNil verifies DeepCopy on a nil pointer returns nil.
+func TestNetworkServiceDeepCopyNil(t *testing.T) {
+	var r *NetworkService
 	if r.DeepCopy() != nil {
 		t.Error("DeepCopy on nil pointer should return nil")
 	}
 }
 
-// TestNetworkRuleJSONRoundTrip verifies that the struct serialises and
+// TestNetworkServiceJSONRoundTrip verifies that the struct serialises and
 // deserialises through JSON without data loss.
-func TestNetworkRuleJSONRoundTrip(t *testing.T) {
-	orig := newTestRule()
+func TestNetworkServiceJSONRoundTrip(t *testing.T) {
+	orig := newTestService()
 	orig.Spec.BackendSelector.MatchExpressions = []metav1.LabelSelectorRequirement{
 		{Key: "tier", Operator: metav1.LabelSelectorOpIn, Values: []string{"frontend"}},
 	}
@@ -68,7 +68,7 @@ func TestNetworkRuleJSONRoundTrip(t *testing.T) {
 		t.Fatalf("Marshal: %v", err)
 	}
 
-	var got NetworkRule
+	var got NetworkService
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}
@@ -87,11 +87,11 @@ func TestNetworkRuleJSONRoundTrip(t *testing.T) {
 	}
 }
 
-// TestNetworkRuleListDeepCopy verifies that NetworkRuleList.DeepCopy
+// TestNetworkServiceListDeepCopy verifies that NetworkServiceList.DeepCopy
 // produces independent copies of each item.
-func TestNetworkRuleListDeepCopy(t *testing.T) {
-	list := &NetworkRuleList{
-		Items: []NetworkRule{*newTestRule()},
+func TestNetworkServiceListDeepCopy(t *testing.T) {
+	list := &NetworkServiceList{
+		Items: []NetworkService{*newTestService()},
 	}
 	copied := list.DeepCopy()
 	copied.Items[0].Spec.VPCRef = "vpc-b"
@@ -101,12 +101,12 @@ func TestNetworkRuleListDeepCopy(t *testing.T) {
 	}
 }
 
-// TestNetworkRuleStatusHasNoPrimaryNode is a regression test: the earlier
-// active-passive Full-NAT design assigned a single primaryNode per rule.
-// This design's anycast/DSR model has every NetworkGateway serve every rule
+// TestNetworkServiceStatusHasNoPrimaryNode is a regression test: the earlier
+// active-passive Full-NAT design assigned a single primaryNode per service.
+// This design's anycast/DSR model has every NetworkGateway serve every service
 // identically, so no such field should exist any more.
-func TestNetworkRuleStatusHasNoPrimaryNode(t *testing.T) {
-	orig := newTestRule()
+func TestNetworkServiceStatusHasNoPrimaryNode(t *testing.T) {
+	orig := newTestService()
 	orig.Status.Conditions = []metav1.Condition{{Type: ConditionTypeAccepted}}
 
 	data, err := json.Marshal(orig.Status)
@@ -124,11 +124,11 @@ func TestNetworkRuleStatusHasNoPrimaryNode(t *testing.T) {
 	}
 }
 
-// TestNetworkRuleBackendFieldNames verifies the JSON keys for the backend
+// TestNetworkServiceBackendFieldNames verifies the JSON keys for the backend
 // selection fields match the CRD schema, and that the static backend list
 // they replaced is gone.
-func TestNetworkRuleBackendFieldNames(t *testing.T) {
-	data, err := json.Marshal(newTestRule().Spec)
+func TestNetworkServiceBackendFieldNames(t *testing.T) {
+	data, err := json.Marshal(newTestService().Spec)
 	if err != nil {
 		t.Fatalf("Marshal: %v", err)
 	}
@@ -147,13 +147,13 @@ func TestNetworkRuleBackendFieldNames(t *testing.T) {
 	}
 }
 
-// TestNetworkRuleProtocolValues is a regression test pinning the accepted
-// NetworkRuleProtocol enum values.
-func TestNetworkRuleProtocolValues(t *testing.T) {
-	if NetworkRuleProtocolTCP != "tcp" {
-		t.Errorf("NetworkRuleProtocolTCP: got %q, want %q", NetworkRuleProtocolTCP, "tcp")
+// TestNetworkServiceProtocolValues is a regression test pinning the accepted
+// NetworkServiceProtocol enum values.
+func TestNetworkServiceProtocolValues(t *testing.T) {
+	if NetworkServiceProtocolTCP != "tcp" {
+		t.Errorf("NetworkServiceProtocolTCP: got %q, want %q", NetworkServiceProtocolTCP, "tcp")
 	}
-	if NetworkRuleProtocolUDP != "udp" {
-		t.Errorf("NetworkRuleProtocolUDP: got %q, want %q", NetworkRuleProtocolUDP, "udp")
+	if NetworkServiceProtocolUDP != "udp" {
+		t.Errorf("NetworkServiceProtocolUDP: got %q, want %q", NetworkServiceProtocolUDP, "udp")
 	}
 }

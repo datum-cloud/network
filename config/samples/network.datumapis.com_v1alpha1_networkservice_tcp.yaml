@@ -1,5 +1,5 @@
 apiVersion: network.datumapis.com/v1alpha1
-kind: NetworkRule
+kind: NetworkService
 metadata:
   name: vpc-a-https
   namespace: galactic-system

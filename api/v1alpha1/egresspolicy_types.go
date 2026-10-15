@@ -6,14 +6,14 @@ import (
 
 // NetworkEgressPolicy enables internet egress for a single tenant
 // VPC/VPCAttachment, served by the sharded, stateful galactic-nat tier
-// (see EgressShard). Unlike NetworkRule, it carries no VIP/backend/port:
+// (see EgressShard). Unlike NetworkService, it carries no VIP/backend/port:
 // egress is on or off for a (vpcRef, vpcAttachmentRef) pair,
 // existence-implies-enabled, not a per-flow rule — because the destination
 // of an egress flow is an arbitrary internet address, not a pre-configured
 // backend list.
 //
 // It is namespaced (deployed to galactic-system) and tenant-writable; like
-// NetworkRule's vpcRef, vpcRef/vpcAttachmentRef are opaque string identifiers
+// NetworkService's vpcRef, vpcRef/vpcAttachmentRef are opaque string identifiers
 // because the VPC API is owned by a separate companion operator, not this
 // repo. An admission webhook (implemented by the consuming controller) must
 // verify the requester is authorized for vpcRef/vpcAttachmentRef before a

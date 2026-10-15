@@ -31,8 +31,8 @@ spec:
           Maglev/DSR consistent-hash L4 load-balancer engine. Exactly one
           NetworkGateway exists per gateway node (spec.targetRef.name is the
           Kubernetes node name), mirroring the BGPRouter node-scoped root object
-          pattern. NetworkRule resources are served by every NetworkGateway in the
-          namespace equally (anycast — see NetworkRuleStatus's doc comment); this
+          pattern. NetworkService resources are served by every NetworkGateway in the
+          namespace equally (anycast — see NetworkServiceStatus's doc comment); this
           object's only job is to identify which nodes participate at all and
           surface each node's engine health via Conditions.
 

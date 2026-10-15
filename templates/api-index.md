@@ -14,5 +14,5 @@ and VRF instances.
 
 Hyperconverged gateway and ingress load-balancing resources.
 
-- [Gateway API Reference](gateway.md) — NetworkGateway, NetworkRule, and
+- [Gateway API Reference](gateway.md) — NetworkGateway, NetworkService, and
   associated types

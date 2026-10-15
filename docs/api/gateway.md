@@ -12,7 +12,7 @@ Package v1alpha1 contains API Schema definitions for the network.datumapis.com/v
 - [EgressShard](#egressshard)
 - [NetworkEgressPolicy](#networkegresspolicy)
 - [NetworkGateway](#networkgateway)
-- [NetworkRule](#networkrule)
+- [NetworkService](#networkservice)
 - [ServiceEndpoint](#serviceendpoint)
 - [ServiceRoutePolicy](#serviceroutepolicy)
 - [ServiceVIPBinding](#servicevipbinding)
@@ -206,14 +206,14 @@ _Appears in:_
 
 NetworkEgressPolicy enables internet egress for a single tenant
 VPC/VPCAttachment, served by the sharded, stateful galactic-nat tier
-(see EgressShard). Unlike NetworkRule, it carries no VIP/backend/port:
+(see EgressShard). Unlike NetworkService, it carries no VIP/backend/port:
 egress is on or off for a (vpcRef, vpcAttachmentRef) pair,
 existence-implies-enabled, not a per-flow rule — because the destination
 of an egress flow is an arbitrary internet address, not a pre-configured
 backend list.
 
 It is namespaced (deployed to galactic-system) and tenant-writable; like
-NetworkRule's vpcRef, vpcRef/vpcAttachmentRef are opaque string identifiers
+NetworkService's vpcRef, vpcRef/vpcAttachmentRef are opaque string identifiers
 because the VPC API is owned by a separate companion operator, not this
 repo. An admission webhook (implemented by the consuming controller) must
 verify the requester is authorized for vpcRef/vpcAttachmentRef before a
@@ -290,8 +290,8 @@ NetworkGateway marks a single dedicated gateway-role node as running the
 Maglev/DSR consistent-hash L4 load-balancer engine. Exactly one
 NetworkGateway exists per gateway node (spec.targetRef.name is the
 Kubernetes node name), mirroring the BGPRouter node-scoped root object
-pattern. NetworkRule resources are served by every NetworkGateway in the
-namespace equally (anycast — see NetworkRuleStatus's doc comment); this
+pattern. NetworkService resources are served by every NetworkGateway in the
+namespace equally (anycast — see NetworkServiceStatus's doc comment); this
 object's only job is to identify which nodes participate at all and
 surface each node's engine health via Conditions.
 
@@ -353,29 +353,29 @@ _Appears in:_
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ | Conditions contains the standard conditions for this resource. |  |  |
 
 
-#### NetworkRule
+#### NetworkService
 
 
 
-NetworkRule defines ingress load-balancing for a single tenant VPC, served
+NetworkService defines ingress load-balancing for a single tenant VPC, served
 by every NetworkGateway node identically (anycast Direct Server Return —
 see NetworkGateway's doc comment). It is namespaced (deployed to
 galactic-system) and tenant-writable; vpcRef is an opaque string identifier
 because the VPC API is owned by a separate companion operator, not this
 repo. An admission webhook (implemented by the consuming controller) must
-verify the requester is authorized for vpcRef before a rule is accepted —
+verify the requester is authorized for vpcRef before a service is accepted —
 see the Accepted condition.
 
 Unlike the earlier Full-NAT design this type originally described, there
-is no primary/secondary gateway node for a rule: every NetworkGateway
-advertises every accepted rule's vipAddresses at equal BGP preference,
+is no primary/secondary gateway node for a service: every NetworkGateway
+advertises every accepted service's vipAddresses at equal BGP preference,
 consistent-hashes the same backend list to the same backend for the same
 flow (internal/maglev), and forwards without rewriting anything —
 backend selection never needs a single "owning" node the way Full-NAT's
 SNAT-source model did.
 
 Backends are not listed. BackendSelector picks the VPCAttachments that
-serve the rule, so the backend set follows attachments as they are
+serve the service, so the backend set follows attachments as they are
 created, deleted or moved to another node, and galactic-router on each
 node generates the ServiceVIPBinding its backends need from the same
 selection.
@@ -387,68 +387,68 @@ selection.
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `network.datumapis.com/v1alpha1` | | |
-| `kind` _string_ | `NetworkRule` | | |
+| `kind` _string_ | `NetworkService` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[NetworkRuleSpec](#networkrulespec)_ |  |  |  |
-| `status` _[NetworkRuleStatus](#networkrulestatus)_ |  |  |  |
+| `spec` _[NetworkServiceSpec](#networkservicespec)_ |  |  |  |
+| `status` _[NetworkServiceStatus](#networkservicestatus)_ |  |  |  |
 
 
-#### NetworkRuleProtocol
+#### NetworkServiceProtocol
 
 _Underlying type:_ _string_
 
-NetworkRuleProtocol is the transport protocol matched by a NetworkRule's
+NetworkServiceProtocol is the transport protocol matched by a NetworkService's
 ingress VIP.
 
 _Validation:_
 - Enum: [tcp udp]
 
 _Appears in:_
-- [NetworkRuleSpec](#networkrulespec)
+- [NetworkServiceSpec](#networkservicespec)
 - [ServiceEndpointSpec](#serviceendpointspec)
 - [ServiceRouteProtocolPort](#servicerouteprotocolport)
 - [ServiceVIPBindingSpec](#servicevipbindingspec)
 
 | Field | Description |
 | --- | --- |
-| `tcp` | NetworkRuleProtocolTCP matches TCP traffic.<br /> |
-| `udp` | NetworkRuleProtocolUDP matches UDP traffic.<br /> |
+| `tcp` | NetworkServiceProtocolTCP matches TCP traffic.<br /> |
+| `udp` | NetworkServiceProtocolUDP matches UDP traffic.<br /> |
 
 
-#### NetworkRuleSpec
+#### NetworkServiceSpec
 
 
 
-NetworkRuleSpec defines the desired ingress load-balancing state for a
+NetworkServiceSpec defines the desired ingress load-balancing state for a
 tenant VPC.
 
 
 
 _Appears in:_
-- [NetworkRule](#networkrule)
+- [NetworkService](#networkservice)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `vpcRef` _string_ | VPCRef is the opaque identifier of the target VPC this rule applies<br />to. This repo does not own the VPC API and does not validate the<br />identifier beyond non-emptiness; the admission webhook of the<br />consuming controller is responsible for verifying the requester is<br />authorized for this VPC before the rule is accepted. |  | MinLength: 1 <br />Required: \{\} <br /> |
-| `vipAddresses` _string array_ | VIPAddresses is the list of ingress VIP addresses (IPv4 and/or IPv6)<br />this rule provisions on the assigned gateway node(s). |  | MaxItems: 8 <br />MinItems: 1 <br />Required: \{\} <br />items:MaxLength: 45 <br /> |
-| `protocol` _[NetworkRuleProtocol](#networkruleprotocol)_ | Protocol is the transport protocol matched by VIPAddresses/Port. |  | Enum: [tcp udp] <br />Required: \{\} <br /> |
-| `port` _integer_ | Port is the ingress port on VIPAddresses that this rule load-balances. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
-| `backendSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#labelselector-v1-meta)_ | BackendSelector selects the VPCAttachments (cloud.datumapis.com/v1alpha1,<br />in any namespace) that serve this rule, matched against each<br />VPCAttachment object's own labels. Only attachments whose status.vpc<br />equals VPCRef are candidates, whatever their labels, so a selector cannot<br />reach into another tenant's VPC. Each selected attachment contributes the<br />IPv6 addresses in its spec.interface.addresses as backends, on<br />BackendPort; the DSR datapath carries IPv6 backends only. An attachment<br />with no status.node or no IPv6 address is not a backend until it has<br />both. An empty selector is rejected rather than read as "every attachment<br />in the VPC". |  | Required: \{\} <br /> |
+| `vpcRef` _string_ | VPCRef is the opaque identifier of the target VPC this service applies<br />to. This repo does not own the VPC API and does not validate the<br />identifier beyond non-emptiness; the admission webhook of the<br />consuming controller is responsible for verifying the requester is<br />authorized for this VPC before the service is accepted. |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `vipAddresses` _string array_ | VIPAddresses is the list of ingress VIP addresses (IPv4 and/or IPv6)<br />this service provisions on the assigned gateway node(s). |  | MaxItems: 8 <br />MinItems: 1 <br />Required: \{\} <br />items:MaxLength: 45 <br /> |
+| `protocol` _[NetworkServiceProtocol](#networkserviceprotocol)_ | Protocol is the transport protocol matched by VIPAddresses/Port. |  | Enum: [tcp udp] <br />Required: \{\} <br /> |
+| `port` _integer_ | Port is the ingress port on VIPAddresses that this service load-balances. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
+| `backendSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#labelselector-v1-meta)_ | BackendSelector selects the VPCAttachments (cloud.datumapis.com/v1alpha1,<br />in any namespace) that serve this service, matched against each<br />VPCAttachment object's own labels. Only attachments whose status.vpc<br />equals VPCRef are candidates, whatever their labels, so a selector cannot<br />reach into another tenant's VPC. Each selected attachment contributes the<br />IPv6 addresses in its spec.interface.addresses as backends, on<br />BackendPort; the DSR datapath carries IPv6 backends only. An attachment<br />with no status.node or no IPv6 address is not a backend until it has<br />both. An empty selector is rejected rather than read as "every attachment<br />in the VPC". |  | Required: \{\} <br /> |
 | `backendPort` _integer_ | BackendPort is the destination port on every selected backend. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
 
 
-#### NetworkRuleStatus
+#### NetworkServiceStatus
 
 
 
-NetworkRuleStatus defines the observed state of a NetworkRule.
+NetworkServiceStatus defines the observed state of a NetworkService.
 
 
 
 _Appears in:_
-- [NetworkRule](#networkrule)
+- [NetworkService](#networkservice)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -547,7 +547,7 @@ _Appears in:_
 | `serviceClass` _string_ | ServiceClass identifies the platform capability implemented by this<br />endpoint, for example "ipv6-egress-dns". |  | MinLength: 1 <br />Required: \{\} <br /> |
 | `address` _string_ | Address is the stable address that consumers use to reach the service. |  | Required: \{\} <br /> |
 | `port` _integer_ | Port is the service port. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
-| `protocol` _[NetworkRuleProtocol](#networkruleprotocol)_ | Protocol is the transport protocol accepted by the endpoint. |  | Enum: [tcp udp] <br />Required: \{\} <br /> |
+| `protocol` _[NetworkServiceProtocol](#networkserviceprotocol)_ | Protocol is the transport protocol accepted by the endpoint. |  | Enum: [tcp udp] <br />Required: \{\} <br /> |
 | `deliveryMode` _[ServiceEndpointDeliveryMode](#serviceendpointdeliverymode)_ | DeliveryMode defines how a backing attachment is selected relative to a<br />consumer. PreferNodeLocal uses a ready attachment on the consumer's node<br />when one exists and otherwise falls back to a ready remote attachment.<br />The dataplane preserves the consumer source address. If consumers with<br />overlapping address space present an identical TCP or UDP five-tuple to the<br />same replica, it rejects the later ambiguous flow fail-closed rather than<br />translate the source or risk returning traffic to the wrong VPC. |  | Enum: [NodeLocal PreferNodeLocal] <br />Required: \{\} <br /> |
 | `attachmentRef` _[ServiceEndpointAttachmentReference](#serviceendpointattachmentreference)_ | AttachmentRef identifies the Cloud API VPCAttachment that hosts this<br />endpoint when the service is delivered through a private VPC path.<br />The network API keeps this reference opaque; the consuming controller<br />resolves it against the Cloud API. |  |  |
 | `attachmentSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#labelselector-v1-meta)_ | AttachmentSelector selects the Cloud API VPCAttachments that host replicas<br />of this endpoint. Labels used here must be assigned by the platform service<br />controller, not by tenants. The dataplane selects one ready replica for<br />each consumer according to DeliveryMode. |  |  |
@@ -683,7 +683,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `protocol` _[NetworkRuleProtocol](#networkruleprotocol)_ | Protocol is the transport protocol. |  | Enum: [tcp udp] <br />Required: \{\} <br /> |
+| `protocol` _[NetworkServiceProtocol](#networkserviceprotocol)_ | Protocol is the transport protocol. |  | Enum: [tcp udp] <br />Required: \{\} <br /> |
 | `port` _integer_ | Port is the transport port. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
 
 
@@ -713,9 +713,9 @@ DSR/Maglev load-balancer datapath: it tells the node which service VIP a
 specific local backend must be reachable on, so the backend can reply to
 clients directly (the "Direct Server Return" this design depends on —
 see NetworkGateway's doc comment). Generated, never written by users:
-galactic-router on each worker node writes one object per (rule, VIP,
-backend) for every backend a NetworkRule's BackendSelector places on that
-node, owned by the rule, and the same process's per-node reconciler
+galactic-router on each worker node writes one object per (service, VIP,
+backend) for every backend a NetworkService's BackendSelector places on that
+node, owned by the service, and the same process's per-node reconciler
 consumes it.
 
 EgressKind decides which of two backend mechanisms this object drives,
@@ -788,10 +788,10 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `targetRef` _[TargetRef](#targetref)_ | TargetRef identifies the Node this binding applies to. |  | Required: \{\} <br /> |
-| `vpcRef` _string_ | VPCRef is the opaque identifier of the VPC the backend belongs to,<br />copied from the owning NetworkRule. It names the tenant VRF the<br />binding's translation rows are written for, so two tenants using the<br />same backend address on one node never share a row. |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `vpcRef` _string_ | VPCRef is the opaque identifier of the VPC the backend belongs to,<br />copied from the owning NetworkService. It names the tenant VRF the<br />binding's translation rows are written for, so two tenants using the<br />same backend address on one node never share a row. |  | MinLength: 1 <br />Required: \{\} <br /> |
 | `vipAddress` _string_ | VIPAddress is the service VIP the backend must be reachable on. |  | Required: \{\} <br /> |
 | `port` _integer_ | Port is the VIP-facing port traffic arrives on. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
-| `protocol` _[NetworkRuleProtocol](#networkruleprotocol)_ | Protocol is the transport protocol this binding applies to. |  | Enum: [tcp udp] <br />Required: \{\} <br /> |
+| `protocol` _[NetworkServiceProtocol](#networkserviceprotocol)_ | Protocol is the transport protocol this binding applies to. |  | Enum: [tcp udp] <br />Required: \{\} <br /> |
 | `backendAddress` _string_ | BackendAddress is the backend's own real address (its pod-netns<br />address for a veth backend, or its actual guest-facing address for a<br />tap backend) — the VIP-boundary substitution target for both kinds<br />now (see EgressKind's own doc comment for why veth needs this too,<br />not just tap). +optional at the API level for the same reason<br />EgressKind itself carries no matching CEL requirement; the<br />reconciler validates it's set for either kind before doing anything. |  |  |
 | `backendPort` _integer_ | BackendPort is the backend's own real port, paired with<br />BackendAddress — required for both kinds, see that field's doc<br />comment. |  | Maximum: 65535 <br />Minimum: 1 <br /> |
 | `egressKind` _[ServiceVIPBindingEgressKind](#servicevipbindingegresskind)_ | EgressKind selects which backend mechanism this binding drives. |  | Enum: [veth tap] <br />Required: \{\} <br /> |
