@@ -82,13 +82,22 @@ type NetworkServiceSpec struct {
 	// +kubebuilder:validation:MinLength=1
 	VPCRef string `json:"vpcRef"`
 
-	// VIPAddresses is the list of ingress VIP addresses (IPv4 and/or IPv6)
-	// this service provisions on the assigned gateway node(s).
+	// VIPAddresses is the list of ingress VIP addresses this service provisions
+	// on the assigned gateway node(s).
+	//
+	// Only IPv6 addresses are admitted until the gateway datapath serves IPv4
+	// VIPs (datum-cloud/galactic#705). A service created with an IPv4 VIP before
+	// this restriction keeps it while the list is unchanged, since the API
+	// server ratchets validation of an unchanged field on Kubernetes 1.30 and
+	// later; any edit to the list must drop it, and on an older API server any
+	// update to such a service is refused. The gateways do not load or advertise
+	// an IPv4 VIP.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=8
 	// +kubebuilder:validation:items:MaxLength=45
 	// +kubebuilder:validation:XValidation:rule="self.all(v, isIP(v))",message="vipAddresses must all be valid IPv4 or IPv6 addresses"
+	// +kubebuilder:validation:XValidation:rule="self.all(v, !isIP(v) || ip(v).family() == 6)",message="vipAddresses must be IPv6: IPv4 VIPs are not served yet (datum-cloud/galactic#705)"
 	// +listType=set
 	VIPAddresses []string `json:"vipAddresses"`
 
