@@ -214,6 +214,7 @@ type AddressClaimRef struct {
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.shardAddressIPv6ClaimRef) || has(self.shardAddressIPv6ClaimRef)",message="shardAddressIPv6ClaimRef cannot be unassigned once assigned"
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.shardAddressIPv4ClaimRef) || has(self.shardAddressIPv4ClaimRef)",message="shardAddressIPv4ClaimRef cannot be unassigned once assigned"
 // +kubebuilder:validation:XValidation:rule="!(has(self.translateWellKnownPrefix) && self.translateWellKnownPrefix) || (has(self.nat64Prefix) && size(self.nat64Prefix) > 0)",message="translateWellKnownPrefix requires nat64Prefix"
+// +kubebuilder:validation:XValidation:rule="!(has(self.nat64Standby) && self.nat64Standby) || (has(self.shardAddressIPv4) && size(self.shardAddressIPv4) > 0)",message="nat64Standby requires shardAddressIPv4"
 type EgressShardSpec struct {
 	// TargetRef identifies the Node this shard executes on.
 	// +kubebuilder:validation:Required
@@ -330,6 +331,24 @@ type EgressShardSpec struct {
 	// it.
 	// +optional
 	Drain bool `json:"drain,omitempty"`
+
+	// NAT64Standby marks this shard's ShardAddressIPv4 as not attracted to its
+	// node while a sibling NAT64 shard is up: replies to it arrive at that
+	// sibling, which holds no session for them and drops them. Compute nodes
+	// that spread egress across a cluster's shards therefore keep NAT64
+	// tenants off a standby shard while any shard without the flag can serve
+	// that NAT64 class, and place them on it only when none can. Requires
+	// ShardAddressIPv4.
+	//
+	// It changes nothing on the shard itself, and NAT66 placement is
+	// unaffected: the shard's IPv6 address is advertised from its own node and
+	// keeps taking NAT66 tenants. Mutable, so the flag can follow the
+	// upstream announcement it describes.
+	//
+	// Compute nodes that send each tenant to a single configured shard ignore
+	// it.
+	// +optional
+	NAT64Standby bool `json:"nat64Standby,omitempty"`
 }
 
 // EgressShardStatus defines the observed state of an EgressShard.
