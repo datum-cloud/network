@@ -40,7 +40,7 @@ type ServiceEndpointSpec struct {
 
 	// Protocol is the transport protocol accepted by the endpoint.
 	// +kubebuilder:validation:Required
-	Protocol NetworkRuleProtocol `json:"protocol"`
+	Protocol NetworkServiceProtocol `json:"protocol"`
 
 	// DeliveryMode defines how a backing attachment is selected relative to a
 	// consumer. PreferNodeLocal uses a ready attachment on the consumer's node
@@ -203,7 +203,7 @@ type ServiceRouteFrontend struct {
 type ServiceRouteProtocolPort struct {
 	// Protocol is the transport protocol.
 	// +kubebuilder:validation:Required
-	Protocol NetworkRuleProtocol `json:"protocol"`
+	Protocol NetworkServiceProtocol `json:"protocol"`
 
 	// Port is the transport port.
 	// +kubebuilder:validation:Required

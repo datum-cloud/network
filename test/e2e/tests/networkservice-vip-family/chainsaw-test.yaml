@@ -1,0 +1,72 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: networkservice-vip-family
+spec:
+  description: >
+    Verify that a NetworkService admits IPv6 VIPs and refuses IPv4 ones, alone or
+    beside an IPv6 VIP, until the gateway datapath serves IPv4 VIPs
+    (datum-cloud/galactic#705). Does not require any operator to be running;
+    the rule is enforced by the API server alone.
+  steps:
+    - name: accept-ipv6-vip
+      try:
+        - apply:
+            resource:
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: NetworkService
+              metadata:
+                name: e2e-service-ipv6-vip
+              spec:
+                vpcRef: vpc-a
+                vipAddresses:
+                  - 2001:db8:1::20
+                protocol: tcp
+                port: 443
+                backendSelector:
+                  matchLabels:
+                    app: web
+                backendPort: 8443
+        - assert:
+            resource:
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: NetworkService
+              metadata:
+                name: e2e-service-ipv6-vip
+              spec:
+                vipAddresses:
+                  - 2001:db8:1::20
+
+    - name: reject-ipv4-vips
+      try:
+        - script:
+            content: |
+              set +e
+              for VIPS in '["203.0.113.20"]' '["2001:db8:1::21", "203.0.113.21"]'; do
+                OUTPUT=$(kubectl apply -n "$NAMESPACE" -f - 2>&1 <<YAML
+              apiVersion: network.datumapis.com/v1alpha1
+              kind: NetworkService
+              metadata:
+                name: e2e-service-ipv4-vip
+              spec:
+                vpcRef: vpc-a
+                vipAddresses: $VIPS
+                protocol: tcp
+                port: 443
+                backendSelector:
+                  matchLabels:
+                    app: web
+                backendPort: 8443
+              YAML
+                )
+                EXIT=$?
+                if [ "$EXIT" -eq 0 ]; then
+                  echo "ERROR: expected rejection of vipAddresses $VIPS but the resource was accepted"
+                  exit 1
+                fi
+                case "$OUTPUT" in
+                  *"IPv4 VIPs are not served yet"*) ;;
+                  *) echo "ERROR: vipAddresses $VIPS rejected for the wrong reason: $OUTPUT"; exit 1 ;;
+                esac
+                echo "OK: vipAddresses $VIPS correctly rejected"
+              done

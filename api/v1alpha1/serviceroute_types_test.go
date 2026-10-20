@@ -12,7 +12,7 @@ func TestServiceRoutePolicyDeepCopy(t *testing.T) {
 		Spec: ServiceRoutePolicySpec{
 			ServiceRef:         ServiceEndpointReference{Name: "ipv6-egress-dns"},
 			AttachmentSelector: metav1.LabelSelector{MatchLabels: map[string]string{"egress": "enabled"}},
-			ProtocolPorts:      []ServiceRouteProtocolPort{{Protocol: NetworkRuleProtocolUDP, Port: 53}},
+			ProtocolPorts:      []ServiceRouteProtocolPort{{Protocol: NetworkServiceProtocolUDP, Port: 53}},
 			Region:             "us-central-1",
 		},
 		Status: ServiceRoutePolicyStatus{Conditions: []metav1.Condition{{Type: "Accepted"}}},

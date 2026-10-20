@@ -9,9 +9,9 @@ import (
 // specific local backend must be reachable on, so the backend can reply to
 // clients directly (the "Direct Server Return" this design depends on —
 // see NetworkGateway's doc comment). Generated, never written by users:
-// galactic-router on each worker node writes one object per (rule, VIP,
-// backend) for every backend a NetworkRule's BackendSelector places on that
-// node, owned by the rule, and the same process's per-node reconciler
+// galactic-router on each worker node writes one object per (service, VIP,
+// backend) for every backend a NetworkService's BackendSelector places on that
+// node, owned by the service, and the same process's per-node reconciler
 // consumes it.
 //
 // EgressKind decides which of two backend mechanisms this object drives,
@@ -78,7 +78,7 @@ type ServiceVIPBindingSpec struct {
 	TargetRef TargetRef `json:"targetRef"`
 
 	// VPCRef is the opaque identifier of the VPC the backend belongs to,
-	// copied from the owning NetworkRule. It names the tenant VRF the
+	// copied from the owning NetworkService. It names the tenant VRF the
 	// binding's translation rows are written for, so two tenants using the
 	// same backend address on one node never share a row.
 	// +kubebuilder:validation:Required
@@ -98,7 +98,7 @@ type ServiceVIPBindingSpec struct {
 
 	// Protocol is the transport protocol this binding applies to.
 	// +kubebuilder:validation:Required
-	Protocol NetworkRuleProtocol `json:"protocol"`
+	Protocol NetworkServiceProtocol `json:"protocol"`
 
 	// BackendAddress is the backend's own real address (its pod-netns
 	// address for a veth backend, or its actual guest-facing address for a

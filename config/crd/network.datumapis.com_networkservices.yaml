@@ -4,16 +4,16 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: networkrules.network.datumapis.com
+  name: networkservices.network.datumapis.com
 spec:
   group: network.datumapis.com
   names:
-    kind: NetworkRule
-    listKind: NetworkRuleList
-    plural: networkrules
+    kind: NetworkService
+    listKind: NetworkServiceList
+    plural: networkservices
     shortNames:
-    - netrule
-    singular: networkrule
+    - netsvc
+    singular: networkservice
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
@@ -33,25 +33,25 @@ spec:
     schema:
       openAPIV3Schema:
         description: |-
-          NetworkRule defines ingress load-balancing for a single tenant VPC, served
+          NetworkService defines ingress load-balancing for a single tenant VPC, served
           by every NetworkGateway node identically (anycast Direct Server Return —
           see NetworkGateway's doc comment). It is namespaced (deployed to
           galactic-system) and tenant-writable; vpcRef is an opaque string identifier
           because the VPC API is owned by a separate companion operator, not this
           repo. An admission webhook (implemented by the consuming controller) must
-          verify the requester is authorized for vpcRef before a rule is accepted —
+          verify the requester is authorized for vpcRef before a service is accepted —
           see the Accepted condition.
 
           Unlike the earlier Full-NAT design this type originally described, there
-          is no primary/secondary gateway node for a rule: every NetworkGateway
-          advertises every accepted rule's vipAddresses at equal BGP preference,
+          is no primary/secondary gateway node for a service: every NetworkGateway
+          advertises every accepted service's vipAddresses at equal BGP preference,
           consistent-hashes the same backend list to the same backend for the same
           flow (internal/maglev), and forwards without rewriting anything —
           backend selection never needs a single "owning" node the way Full-NAT's
           SNAT-source model did.
 
           Backends are not listed. BackendSelector picks the VPCAttachments that
-          serve the rule, so the backend set follows attachments as they are
+          serve the service, so the backend set follows attachments as they are
           created, deleted or moved to another node, and galactic-router on each
           node generates the ServiceVIPBinding its backends need from the same
           selection.
@@ -75,7 +75,7 @@ spec:
             type: object
           spec:
             description: |-
-              NetworkRuleSpec defines the desired ingress load-balancing state for a
+              NetworkServiceSpec defines the desired ingress load-balancing state for a
               tenant VPC.
             properties:
               backendPort:
@@ -88,7 +88,7 @@ spec:
               backendSelector:
                 description: |-
                   BackendSelector selects the VPCAttachments (cloud.datumapis.com/v1alpha1,
-                  in any namespace) that serve this rule, matched against each
+                  in any namespace) that serve this service, matched against each
                   VPCAttachment object's own labels. Only attachments whose status.vpc
                   equals VPCRef are candidates, whatever their labels, so a selector cannot
                   reach into another tenant's VPC. Each selected attachment contributes the
@@ -146,7 +146,7 @@ spec:
                   rule: (has(self.matchLabels) && size(self.matchLabels) > 0) || (has(self.matchExpressions)
                     && size(self.matchExpressions) > 0)
               port:
-                description: Port is the ingress port on VIPAddresses that this rule
+                description: Port is the ingress port on VIPAddresses that this service
                   load-balances.
                 format: int32
                 maximum: 65535
@@ -160,8 +160,16 @@ spec:
                 type: string
               vipAddresses:
                 description: |-
-                  VIPAddresses is the list of ingress VIP addresses (IPv4 and/or IPv6)
-                  this rule provisions on the assigned gateway node(s).
+                  VIPAddresses is the list of ingress VIP addresses this service provisions
+                  on the assigned gateway node(s).
+
+                  Only IPv6 addresses are admitted until the gateway datapath serves IPv4
+                  VIPs (datum-cloud/galactic#705). A service created with an IPv4 VIP before
+                  this restriction keeps it while the list is unchanged, since the API
+                  server ratchets validation of an unchanged field on Kubernetes 1.30 and
+                  later; any edit to the list must drop it, and on an older API server any
+                  update to such a service is refused. The gateways do not load or advertise
+                  an IPv4 VIP.
                 items:
                   maxLength: 45
                   type: string
@@ -172,13 +180,16 @@ spec:
                 x-kubernetes-validations:
                 - message: vipAddresses must all be valid IPv4 or IPv6 addresses
                   rule: self.all(v, isIP(v))
+                - message: 'vipAddresses must be IPv6: IPv4 VIPs are not served yet
+                    (datum-cloud/galactic#705)'
+                  rule: self.all(v, !isIP(v) || ip(v).family() == 6)
               vpcRef:
                 description: |-
-                  VPCRef is the opaque identifier of the target VPC this rule applies
+                  VPCRef is the opaque identifier of the target VPC this service applies
                   to. This repo does not own the VPC API and does not validate the
                   identifier beyond non-emptiness; the admission webhook of the
                   consuming controller is responsible for verifying the requester is
-                  authorized for this VPC before the rule is accepted.
+                  authorized for this VPC before the service is accepted.
                 minLength: 1
                 type: string
             required:
@@ -190,7 +201,7 @@ spec:
             - vpcRef
             type: object
           status:
-            description: NetworkRuleStatus defines the observed state of a NetworkRule.
+            description: NetworkServiceStatus defines the observed state of a NetworkService.
             properties:
               conditions:
                 description: Conditions contains the standard conditions for this

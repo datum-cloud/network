@@ -40,7 +40,7 @@ All dev tools (golangci-lint, controller-gen, chainsaw, yamlfmt) are installed l
 
 | Group              | Version    | Resources                                                                 |
 |--------------------|------------|---------------------------------------------------------------------------|
-| `network.datumapis.com` | `v1alpha1` | BGPRouter, BGPPeer, BGPAdvertisement, BGPPolicy, BGPVRFInstance, NetworkGateway, NetworkRule |
+| `network.datumapis.com` | `v1alpha1` | BGPRouter, BGPPeer, BGPAdvertisement, BGPPolicy, BGPVRFInstance, NetworkGateway, NetworkService |
 
 Source lives in `api/v1alpha1/`. Each resource has its own `*_types.go` file; shared types (RouterTarget, AddressFamily, etc.) live in `shared_types.go`.
 
